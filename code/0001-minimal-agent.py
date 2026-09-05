@@ -23,6 +23,11 @@ def get_weather(city: str) -> str:
              "巴黎": "雨，14°C",  "纽约": "晴，26°C"}
     return table.get(city, f"暂无 {city} 的天气数据")
 
+def get_current_time() -> str:
+    """查询当前时间（教学用假数据，真实场景换成调时间 API）"""
+    from datetime import datetime
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 # --- 2) 把工具"说明书"给模型看：名字/说明/参数结构 ---
 TOOLS = [{
     "name": "get_weather",
@@ -33,11 +38,18 @@ TOOLS = [{
                                 "description": "城市名，如：北京"}},
         "required": ["city"],
     },
+},{
+    "name": "get_current_time",
+    "description": "查询当前时间。用户问时间时使用。",
+    "input_schema": {
+        "type": "object",
+        "properties": {}}
 }]
-EXEC = {"get_weather": get_weather}   # 名字 -> 真实函数
+
+EXEC = {"get_weather": get_weather, "get_current_time": get_current_time}   # 名字 -> 真实函数
 
 # --- 3) 对话历史从这里开始 ---
-messages = [{"role": "user", "content": "帮我查一下巴黎现在的天气怎么样？"}]
+messages = [{"role": "user", "content": "现在北京时间几点？帮我查一下巴黎现在的天气怎么样？"}]
 
 # --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---
 while True:
