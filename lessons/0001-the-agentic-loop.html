@@ -106,13 +106,13 @@
         <button class="opt" data-correct="false" data-explain="模型强不强不是判据——一个只会答一次的强模型依然不是 Agent。">
           <span class="tag">A</span><span>它调用了最强的旗舰大模型</span>
         </button>
-        <button class="opt" data-correct="true" data-explain="对。核心是"循环 + 模型自主决定是否调工具"，路径不由代码写死。">
+        <button class="opt" data-correct="true" data-explain="对。核心是“循环 + 模型自主决定是否调工具”，路径不由代码写死。">
           <span class="tag">B</span><span>模型能在循环里自主决定调哪个工具</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="提示词再细，也只是"一次调用"做得更好，不是 Agent。">
+        <button class="opt" data-correct="false" data-explain="提示词再细，也只是“一次调用”做得更好，不是 Agent。">
           <span class="tag">C</span><span>系统提示词写得非常详实</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="能存多轮对话只是"记忆"模块，单靠它构不成 Agent。">
+        <button class="opt" data-correct="false" data-explain="能存多轮对话只是“记忆”模块，单靠它构不成 Agent。">
           <span class="tag">D</span><span>它能把多轮对话保存下来</span>
         </button>
       </div>
@@ -127,7 +127,7 @@
         <button class="opt" data-correct="true" data-explain="对。执行模型点名的工具，把 tool_result 按 id 喂回去，然后 continue 继续下一轮。">
           <span class="tag">B</span><span>执行对应工具，回填结果，继续循环</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="换模型不解决问题——它本来就想调工具，你得让它"调用完"。">
+        <button class="opt" data-correct="false" data-explain="换模型不解决问题——它本来就想调工具，你得让它“调用完”。">
           <span class="tag">C</span><span>换一个更大的模型重发一次请求</span>
         </button>
         <button class="opt" data-correct="false" data-explain="清历史会丢掉前文，模型更答不对，而且这不是处理工具调用的方式。">
@@ -139,13 +139,13 @@
     <div class="q">
       <p class="q-text">工具 get_weather 真正"执行"的代码，是谁在跑？</p>
       <div class="opts">
-        <button class="opt" data-correct="false" data-explain="大模型只"点单"不"做菜"——它返回参数，由你的程序执行。">
+        <button class="opt" data-correct="false" data-explain="大模型只“点单”不“做菜”——它返回参数，由你的程序执行。">
           <span class="tag">A</span><span>大模型自己在云端执行</span>
         </button>
         <button class="opt" data-correct="true" data-explain="对。工具 = 你注册给模型的函数，真正跑的是你进程里的 Python 函数。这也是安全边界所在。">
           <span class="tag">B</span><span>你程序里的那个 Python 函数</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="JSON Schema 只是"说明书"，描述参数，不执行任何东西。">
+        <button class="opt" data-correct="false" data-explain="JSON Schema 只是“说明书”，描述参数，不执行任何东西。">
           <span class="tag">C</span><span>工具的 JSON Schema 定义</span>
         </button>
         <button class="opt" data-correct="false" data-explain="与浏览器无关；即便有前端，干活的仍是你的后端代码。">
@@ -166,7 +166,7 @@
         <button class="opt" data-correct="false" data-explain="灵活 ≠ 更准。对固定任务，写死路径的 Workflow 往往更稳定可预测。">
           <span class="tag">C</span><span>Agent 一定比 Workflow 更准确</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="跟上下文窗口大小没关系，是"谁在定路径"的区别。">
+        <button class="opt" data-correct="false" data-explain="跟上下文窗口大小没关系，是“谁在定路径”的区别。">
           <span class="tag">D</span><span>Workflow 需要更大的上下文窗口</span>
         </button>
       </div>

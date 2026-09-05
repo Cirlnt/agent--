@@ -99,13 +99,13 @@
     <div class="q">
       <p class="q-text">想让模型"稳定"交出一份能直接解析的 JSON，老手的第一反应是？</p>
       <div class="opts">
-        <button class="opt" data-correct="false" data-explain="在 prompt 里把话重复三遍，只是把"软约束"说得更用力。模型输出的仍是文本，格式依旧是它"赏"的。">
+        <button class="opt" data-correct="false" data-explain="在 prompt 里把话重复三遍，只是把“软约束”说得更用力。模型输出的仍是文本，格式依旧是它“赏”的。">
           <span class="tag">A</span><span>在 prompt 里把"必须输出 JSON、不要废话"连写三遍</span>
         </button>
-        <button class="opt" data-correct="true" data-explain="对。定义一个输出工具，让模型用工具调用把答案交回来——block.input 天生是 dict，schema 的 required/enum 还约束它必须给全。这就是把 schema 当"输出合同"。"靠契约不靠祈祷"从输入侧搬到输出侧。">
+        <button class="opt" data-correct="true" data-explain="对。定义一个输出工具，让模型用工具调用把答案交回来——block.input 天生是 dict，schema 的 required/enum 还约束它必须给全。这就是把 schema 当“输出合同”。“靠契约不靠祈祷”从输入侧搬到输出侧。">
           <span class="tag">B</span><span>定义一个"输出工具"，让模型通过调用它来交答案，从 block.input 直接拿 dict</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="模型强不强，解决不了"输出带围栏/被截断"这类格式问题——那是通道设计问题，不是智力问题。">
+        <button class="opt" data-correct="false" data-explain="模型强不强，解决不了“输出带围栏/被截断”这类格式问题——那是通道设计问题，不是智力问题。">
           <span class="tag">C</span><span>换一个更聪明的旗舰模型</span>
         </button>
         <button class="opt" data-correct="false" data-explain="人工校对只能兜住几个样本，撑不起生产；你要的是结构上就不容易错，而不是事后补救。">
@@ -120,13 +120,13 @@
         <button class="opt" data-correct="false" data-explain="如果它是文本，才需要再 json.loads。但工具参数走的不是文本通道——端点已替你完成 JSON 编解码。">
           <span class="tag">A</span><span>一个需要我再 json.loads 一次的字符串</span>
         </button>
-        <button class="opt" data-correct="true" data-explain="对。block.input 已经是 Python dict。这就是"工具即输出"省掉的整整一类 bug：连"解析失败"都不存在了。">
+        <button class="opt" data-correct="true" data-explain="对。block.input 已经是 Python dict。这就是“工具即输出”省掉的整整一类 bug：连“解析失败”都不存在了。">
           <span class="tag">B</span><span>已经解析好的 Python dict</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="input_schema 是你在请求里写给模型看的定义，是"合同文本"；模型交回的是按合同填好的参数。">
+        <button class="opt" data-correct="false" data-explain="input_schema 是你在请求里写给模型看的定义，是“合同文本”；模型交回的是按合同填好的参数。">
           <span class="tag">C</span><span>一串 JSON Schema 定义</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="不靠心情：工具参数的 JSON 编解码是机器通道保证的，这正是它比"让模型手写 JSON 文本"稳的地方。">
+        <button class="opt" data-correct="false" data-explain="不靠心情：工具参数的 JSON 编解码是机器通道保证的，这正是它比“让模型手写 JSON 文本”稳的地方。">
           <span class="tag">D</span><span>不确定，得看模型当天心情</span>
         </button>
       </div>
@@ -135,10 +135,10 @@
     <div class="q">
       <p class="q-text">"只输出 JSON"的裸 prompt 为什么算"没上锁"？</p>
       <div class="opts">
-        <button class="opt" data-correct="true" data-explain="对。模型输出的是文本，而"这段文本长什么样"由它说了算：今天可能干净，明天可能带 ```json 围栏、加句解释、多个尾逗号，甚至输出被 max_tokens 截断成空——json.loads 随时崩。能解析靠的是它守规矩，不是你的锁。">
+        <button class="opt" data-correct="true" data-explain="对。模型输出的是文本，而“这段文本长什么样”由它说了算：今天可能干净，明天可能带 ```json 围栏、加句解释、多个尾逗号，甚至输出被 max_tokens 截断成空——json.loads 随时崩。能解析靠的是它守规矩，不是你的锁。">
           <span class="tag">A</span><span>因为输出是文本，格式由模型"赏"：可能带围栏/前后缀/尾逗号，甚至被截断为空，json.loads 随时崩</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="JSON 没有"安全漏洞"这一说；问题在文本到数据的解析这一跳不可控。">
+        <button class="opt" data-correct="false" data-explain="JSON 没有“安全漏洞”这一说；问题在文本到数据的解析这一跳不可控。">
           <span class="tag">B</span><span>因为 JSON 格式本身有安全漏洞</span>
         </button>
         <button class="opt" data-correct="false" data-explain="模型当然产出文本——恰恰因为它产出的是文本，才需要你再解析、才容易出问题。">
@@ -153,16 +153,16 @@
     <div class="q">
       <p class="q-text">你想按 Anthropic 文档用 tool_choice={type:'tool', name:'submit_request'} 强制模型走输出工具，却在 DeepSeek 兼容端点撞到 400："Thinking mode does not support this tool_choice"。这说明什么？</p>
       <div class="opts">
-        <button class="opt" data-correct="false" data-explain="文档描述的是 Anthropic 官方端点的能力；你的端点只是"兼容"，不等于行为一模一样。先别急着怀疑自己。">
+        <button class="opt" data-correct="false" data-explain="文档描述的是 Anthropic 官方端点的能力；你的端点只是“兼容”，不等于行为一模一样。先别急着怀疑自己。">
           <span class="tag">A</span><span>一定是我代码写错了，Anthropic 文档不可能骗我</span>
         </button>
         <button class="opt" data-correct="false" data-explain="没依据。端点报错说的是 tool_choice 与它的 thinking 模式冲突，与换 pro 模型无关。">
           <span class="tag">B</span><span>换成 deepseek-v4-pro 就一定解决</span>
         </button>
-        <button class="opt" data-correct="true" data-explain="对。"服务端强制"是每个端点各自的实现，不跨厂商通用。正确姿势：在自己的端点实测、读报错原文，然后据此选兜底（本课：tool_choice any + 单输出工具，或代码里检查 stop_reason 重试）。">
+        <button class="opt" data-correct="true" data-explain="对。“服务端强制”是每个端点各自的实现，不跨厂商通用。正确姿势：在自己的端点实测、读报错原文，然后据此选兜底（本课：tool_choice any + 单输出工具，或代码里检查 stop_reason 重试）。">
           <span class="tag">C</span><span>服务端"强制"开关不是每个端点都一样，要在自己端点上实测、读报错，再决定兜底</span>
         </button>
-        <button class="opt" data-correct="false" data-explain="过了头。真 Anthropic / OpenAI 都支持各自的强制方案；结论是"要实测"，不是"永远别用"。">
+        <button class="opt" data-correct="false" data-explain="过了头。真 Anthropic / OpenAI 都支持各自的强制方案；结论是“要实测”，不是“永远别用”。">
           <span class="tag">D</span><span>所以永远不要用工具强制这一招</span>
         </button>
       </div>
