@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核心术语表 · Agent 开发</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+  /* 术语表文档自身的排版微调（版式组件见 lesson.css 的 .gloss） */
+  body.ref-page { background: var(--paper); }
+  .ref-head { border-bottom: 3px double var(--rule); padding-bottom: 1rem; margin-bottom: 1.6rem; }
+  .ref-head h1 { font-family: var(--serif); margin: 0.2rem 0; }
+  .ref-group { margin-top: 1.8rem; }
+  .ref-group h2 { border-top: none; margin: 1.6rem 0 0.2rem; font-size: 1.25rem; }
+  .ref-group h2::before { width: 0.6rem; height: 0.6rem; margin-right: 0.5rem; }
+</style>
+</head>
+<body class="ref-page">
+<div class="lesson">
+
+  <div class="ref-head">
+    <div class="lesson-kicker">Reference · 随取随查</div>
+    <h1>Agent 开发核心术语表</h1>
+    <p class="lesson-sub">全课程统一的"字典"。讲课与写代码都使用这里的用词；英文词即面试与文档中会遇到的词，不要自造中文译名替代。打印出来贴墙上更好。</p>
+    <p class="fn">🖨 本页为速查参考，排版为打印优化。</p>
+  </div>
+
+  <div class="ref-group">
+    <h2>心智模型</h2>
+    <ul class="gloss">
+      <li>
+        <span class="en">LLM call / Messages API<span class="alt">一次大模型调用</span></span>
+        <span class="zh">无状态"文进文出"请求</span>
+        <span class="def">给它一段文本（messages + system），它返回一段文本。本身没有记忆、没有主动性。Agent 的一切都是在这上面叠出来的。</span>
+      </li>
+      <li>
+        <span class="en">Agent（智能体）<span class="alt">智能体</span></span>
+        <span class="zh">能自主多步决策的程序</span>
+        <span class="def">LLM 当"大脑"，配上工具（"手脚"），通过循环自主决定下一步做什么，直到完成任务。判别要点：路径不是代码写死的。</span>
+      </li>
+      <li>
+        <span class="en">Agentic loop<span class="alt">智能体循环</span></span>
+        <span class="zh">agent 的心脏</span>
+        <span class="def">循环四步：①发消息给模型 → ②模型若想调工具就返回 tool_use → ③你的代码执行工具、把 tool_result 喂回去 → ④回到①；直到模型返回纯文本答案（end_turn）停止。所有 agent 框架都是在帮你跑这个循环。</span>
+      </li>
+      <li>
+        <span class="en">Workflow（工作流）<span class="alt">工作流</span></span>
+        <span class="zh">代码定路径</span>
+        <span class="def">由工程师预先编排好管道，LLM 只填其中细节（例如"先总结→再翻译→再润色"）。Agent 的"可控"版本。Anthropic 建议：能用 workflow 就别上 agent。</span>
+      </li>
+      <li>
+        <span class="en">ReAct<span class="alt">Reason + Act 提示范式</span></span>
+        <span class="zh">"推理→行动→观察"</span>
+        <span class="def">让模型先想（Reason）再做（Act，即调工具）再看结果（Observation）。agentic loop 是其工程化落地。面试高频词，别只说框架名。</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="ref-group">
+    <h2>对话结构</h2>
+    <ul class="gloss">
+      <li>
+        <span class="en">System prompt<span class="alt">系统提示词</span></span>
+        <span class="zh">全局行为指令</span>
+        <span class="def">告诉模型它是谁、要遵守什么规则、输出风格。放在每轮请求最前，尽量稳定（方便缓存、省钱）。</span>
+      </li>
+      <li>
+        <span class="en">Messages<span class="alt">消息历史</span></span>
+        <span class="zh">发给模型的完整对话</span>
+        <span class="def">API 无状态：每轮都要把此前全部内容重发。角色有 user / assistant / system。多轮 = 你手动维护一个不断变长的列表。</span>
+      </li>
+      <li>
+        <span class="en">Stop reason<span class="alt">停止原因</span></span>
+        <span class="zh">"这次为什么停了"</span>
+        <span class="def">响应自带的字段。end_turn=正常答完；tool_use=想调工具（你的循环信号）；max_tokens=输出被截断；refusal=拒答。循环判断就靠它。</span>
+      </li>
+      <li>
+        <span class="en">Token / context window<span class="alt">令牌 / 上下文窗口</span></span>
+        <span class="zh">计费与容量单位</span>
+        <span class="def">模型读写的单位；输入+输出都算钱。上下文窗口 = 一次能塞进多少 token（上限）。窗口不是无限，长对话要压缩/裁剪/记忆化——这是后续大主题。</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="ref-group">
+    <h2>工具（Tools）</h2>
+    <ul class="gloss">
+      <li>
+        <span class="en">Tool / Function calling<span class="alt">工具 / 函数调用</span></span>
+        <span class="zh">模型不执行，只"点单"</span>
+        <span class="def">你声明一组函数（名字+描述+参数 schema），模型根据用户话术决定调哪个、传什么参，以结构化 JSON 返回。真正执行的是你的代码——这是安全边界，也是核心概念。</span>
+      </li>
+      <li>
+        <span class="en">tool_use / tool_result<span class="alt">工具请求块 / 工具结果块</span></span>
+        <span class="zh">一个回合内的"点单"与"回单"</span>
+        <span class="def">assistant 消息里带 <code>tool_use</code> 块（含唯一 id）；你执行完，用 user 消息带 <code>tool_result</code> 块（同一 id）把结果喂回去。id 必须对得上。</span>
+      </li>
+      <li>
+        <span class="en">Tool schema<span class="alt">工具定义（JSON Schema）</span></span>
+        <span class="zh">工具的"说明书"</span>
+        <span class="def">name + description + input_schema。description 是给模型看的，写清楚"什么时候用、参数含义"，直接决定模型会不会乱调。高级技巧全靠雕琢它。</span>
+      </li>
+      <li>
+        <span class="en">MCP<span class="alt">Model Context Protocol</span></span>
+        <span class="zh">工具接入的开放标准</span>
+        <span class="def">把"数据库/文件/外部服务"包装成统一接口给 AI 用的协议（AI 世界 USB-C）。服务端暴露 tools/resources/prompts，客户端调用。可理解为工具的一种"插头标准"。</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="ref-group">
+    <h2>进阶构件</h2>
+    <ul class="gloss">
+      <li>
+        <span class="en">Structured output<span class="alt">结构化输出</span></span>
+        <span class="zh">让输出符合 schema</span>
+        <span class="def">强制模型输出合法 JSON/符合你定义的结构（Anthropic <code>output_format</code> / <code>strict:true</code>），配 Pydantic 校验。工程化第一课：别让模型输出随意文本，再让下游解析。</span>
+      </li>
+      <li>
+        <span class="en">Memory（记忆）<span class="alt">记忆</span></span>
+        <span class="zh">跨会话/长程状态</span>
+        <span class="def">对话窗口 = 短期记忆；向量库/数据库/记忆工具 = 长期记忆。Agent 要"记得上次"，不能只靠重发历史。</span>
+      </li>
+      <li>
+        <span class="en">RAG<span class="alt">检索增强生成</span></span>
+        <span class="zh">给模型接上你的资料库</span>
+        <span class="def">把文档切块向量化，用户提问时先检索最相关片段，再连同问题一起给模型。解决"模型不知道你的私有/新知识"。Agent + RAG 是岗位 JD 两大高频点。</span>
+      </li>
+      <li>
+        <span class="en">Eval（评估）<span class="alt">评估</span></span>
+        <span class="zh">怎么证明"变好了"</span>
+        <span class="def">一组成对用例（输入→期望），每次改动后跑一遍对比。没有 eval，agent 调优就是玄学。面试亮点位。</span>
+      </li>
+      <li>
+        <span class="en">Orchestrator / Multi-agent<span class="alt">编排 / 多智能体</span></span>
+        <span class="zh">一个大脑拆成多个角色</span>
+        <span class="def">主 agent 分任务给子 agent（subagent/orchestrator-workers），或交接控制权（handoffs）。适合超长、可并行的任务。入门阶段先掌握单 agent 再说。</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">用词纪律</span>
+    <p>课件里只使用本表术语。比如：不要用"Function Call"与"Tool Use"混着叫却不说清是同一件事；讲"循环"用 <em>agentic loop</em>；讲路径预编好用 <em>workflow</em>，别把 workflow 也叫成 agent。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 返回课程首页</a>
+    <a class="next" href="../lessons/0001-the-agentic-loop.html">去上第 1 课：Agent 的最小闭环 →</a>
+  </div>
+
+  <footer class="colophon">术语表版本 v1 · 随课程扩展更新。</footer>
+</div>
+</body>
+</html>

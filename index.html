@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 开发冲刺课 · 首页</title>
+<link rel="stylesheet" href="assets/lesson.css">
+<style>
+  .home-meta { font-size: 0.9rem; color: var(--ink-soft); }
+  .module { margin-top: 2.2rem; }
+  .module h3 { font-family: var(--serif); font-size: 1.15rem; display: flex; align-items: center; gap: .5rem; }
+  .module h3 .m { background: var(--accent); color: #fff; border-radius: 6px; padding: .05rem .5rem; font-size: .75rem; }
+  .card { display: block; background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: .8rem 1.1rem; margin: .6rem 0; text-decoration: none; color: var(--ink); }
+  .card:hover { border-color: var(--accent); }
+  .card .t { font-weight: 700; }
+  .card .d { font-size: .92rem; color: var(--ink-soft); }
+  .card.now { border-left: 4px solid var(--rust); }
+  .card.later { opacity: .55; }
+  ul.plain { list-style: none; padding: 0; }
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: .7rem; margin: 1.2rem 0; }
+  .stat { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: .8rem 1rem; }
+  .stat .k { font-size: .78rem; color: var(--muted); letter-spacing: .05em; }
+  .stat .v { font-weight: 700; font-size: 1.05rem; }
+  .stat .v small { font-weight: 400; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="lesson">
+
+  <div class="lesson-kicker">教学工作区</div>
+  <h1 class="lesson-title">Agent 开发冲刺课</h1>
+  <p class="lesson-sub">目标：约 3 个月转型 <b>AI 应用工程师</b>（Claude + OpenAI，概念通用）。每课一个能带走的小成果。</p>
+  <p class="home-meta">方法：概念 → 动手 → 自测反馈 · 学到的一定会写进 <a href="learning-records/">学习记录</a>，据此决定下一课。</p>
+
+  <div class="status-grid">
+    <div class="stat"><div class="k">使命</div><div class="v"><a href="MISSION.md">MISSION.md</a></div></div>
+    <div class="stat"><div class="k">资源库</div><div class="v"><a href="RESOURCES.md">RESOURCES.md</a></div></div>
+    <div class="stat"><div class="k">术语表</div><div class="v"><a href="reference/glossary-core-terms.html">glossary-core-terms.html</a></div></div>
+    <div class="stat"><div class="k">进度</div><div class="v">第 1 课 <small>（M1）</small></div></div>
+  </div>
+
+  <div class="module">
+    <h3><span class="m">M1</span>核心心智模型</h3>
+    <a class="card now" href="lessons/0001-the-agentic-loop.html">
+      <span class="t">第 1 课 · Agent 的最小闭环</span>
+      <span class="d">看懂 agentic loop → 亲手跑起一个会"自己决定调工具"的 Agent（含代码 + 自测 + 必读原典）</span>
+    </a>
+    <a class="card now" href="lessons/0001-the-agentic-loop.html#hands-on">
+      <span class="t">动手文件</span>
+      <span class="d">code/0001-minimal-agent.py 已就绪，配合第 1 课第 3 节使用</span>
+    </a>
+  </div>
+
+  <div class="module">
+    <h3><span class="m">M2</span>工程地基</h3>
+    <a class="card later" href="#"><span class="t">第 2 课 ·（预告）工具的雕琢：description 与 schema</span><span class="d">尚未发布 · 完成第 1 课后向我报到，我会开讲</span></a>
+  </div>
+
+  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。此页会随课程增长自动扩展。</p>
+</div>
+</body>
+</html>

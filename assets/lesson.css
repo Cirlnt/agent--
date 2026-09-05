@@ -1,0 +1,344 @@
+/* ============================================================
+   lesson.css — 统一课件风格（本课程共享组件 #1）
+   设计：暖纸底 + 墨色字 + 深青强调；适合屏幕阅读与打印。
+   ============================================================ */
+
+:root {
+  --paper: #f7f4ef;          /* 页面暖纸底 */
+  --card: #ffffff;           /* 面板白 */
+  --ink: #23201b;            /* 主文字（墨色，偏暖） */
+  --ink-soft: #57534a;       /* 次要文字 */
+  --muted: #8a857b;          /* 弱文字/时间戳 */
+  --accent: #0e6f63;         /* 深青：主强调 */
+  --accent-soft: #e2efe9;    /* 强调的浅底 */
+  --rust: #b4552d;           /* 赤褐：次级强调/练习 */
+  --rust-soft: #f7e7de;
+  --danger: #b3261e;
+  --danger-soft: #fae6e4;
+  --good: #1d6b3a;
+  --good-soft: #e2efe4;
+  --gold: #9a6b13;
+  --gold-soft: #f6eeda;
+  --code-bg: #efece6;
+  --rule: #ded8cd;
+  --measure: 44rem;          /* 正文栏宽（Tufte 式舒适栏） */
+  --serif: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+  --sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --mono: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16.5px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 页面容器与页眉 ---------- */
+.lesson {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 3.2rem 1.4rem 6rem;
+}
+
+.lesson-kicker {
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+h1.lesson-title {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1.2;
+  margin: 0.35rem 0 0.6rem;
+  letter-spacing: -0.01em;
+}
+
+.lesson-sub {
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  margin: 0 0 1.4rem;
+}
+
+.lesson-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 2rem;
+}
+.chip {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+}
+.chip b { color: var(--ink); font-weight: 600; }
+.chip.mission { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 600; }
+
+/* 一根分隔线，标注"进入正文" */
+.lede {
+  border-top: 3px double var(--rule);
+  border-bottom: 3px double var(--rule);
+  padding: 0.9rem 0;
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 1.08rem;
+}
+
+/* ---------- 标题体系 ---------- */
+h2 {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  margin: 3rem 0 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+}
+h2::before {
+  content: "";
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  background: var(--accent);
+  margin-right: 0.55rem;
+  transform: rotate(45deg);
+}
+h3 { font-size: 1.14rem; margin: 2rem 0 0.6rem; color: var(--ink); }
+h4 { font-size: 1rem; margin: 1.5rem 0 0.4rem; }
+
+p { margin: 0.7rem 0; }
+strong { color: var(--ink); }
+em { color: inherit; }
+a { color: var(--accent); text-decoration-thickness: 0.08em; text-underline-offset: 2px; }
+a:hover { color: var(--rust); }
+
+ul, ol { margin: 0.7rem 0 0.9rem; padding-left: 1.4rem; }
+li { margin: 0.3rem 0; }
+li::marker { color: var(--accent); }
+
+hr { border: none; border-top: 1px solid var(--rule); margin: 2.4rem 0; }
+
+blockquote {
+  margin: 1.2rem 0;
+  padding: 0.4rem 1.2rem;
+  border-left: 3px solid var(--accent);
+  background: var(--card);
+  color: var(--ink-soft);
+  border-radius: 0 6px 6px 0;
+}
+blockquote p { margin: 0.4rem 0; }
+blockquote cite { display: block; margin-top: 0.3rem; font-size: 0.85rem; color: var(--muted); font-style: normal; }
+
+/* ---------- 代码 ---------- */
+code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  padding: 0.12em 0.38em;
+  border-radius: 4px;
+  color: #9c3d1f;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  margin: 1.1rem 0;
+}
+pre code { background: none; padding: 0; color: var(--ink); font-size: inherit; }
+pre .c  { color: #7d7a72; font-style: italic; }  /* 注释 */
+pre .k  { color: #7a3e9d; }                      /* 关键字 */
+pre .s  { color: #1d6b3a; }                      /* 字符串 */
+pre .n  { color: #0e5fa8; }                      /* 数字/常量 */
+pre .f  { color: #0e6f63; }                      /* 函数名 */
+
+/* ---------- 信息框组件 ---------- */
+.callout {
+  border-radius: 8px;
+  padding: 0.85rem 1.1rem;
+  margin: 1.3rem 0;
+  border: 1px solid transparent;
+}
+.callout .t { font-weight: 700; display: block; margin-bottom: 0.15rem; font-size: 0.9rem; letter-spacing: 0.02em; }
+.callout p { margin: 0.35rem 0; }
+.callout p:first-of-type { margin-top: 0; }
+.callout p:last-child { margin-bottom: 0; }
+
+.info { background: var(--accent-soft); border-color: #cfe5dc; }
+.info .t { color: var(--accent); }
+.warn { background: var(--gold-soft); border-color: #eadbb5; }
+.warn .t { color: var(--gold); }
+.warn code, .danger code { color: inherit; }
+.danger { background: var(--danger-soft); border-color: #efd0cc; }
+.danger .t { color: var(--danger); }
+.read { background: var(--card); border-color: var(--rule); border-left: 3px solid var(--accent); }
+.read .t { color: var(--accent); }
+.do { background: var(--good-soft); border-color: #cfe6d5; }
+.do .t { color: var(--good); }
+
+/* 动作/练习块 */
+.exercise, .challenge {
+  background: var(--card);
+  border: 1px dashed var(--rust);
+  border-radius: 10px;
+  padding: 1.1rem 1.3rem;
+  margin: 1.5rem 0;
+}
+.exercise .t, .challenge .t {
+  font-weight: 700; color: var(--rust); display: flex; align-items: center; gap: 0.5rem;
+}
+.exercise .t::before, .challenge .t::before {
+  content: "✎"; font-weight: 400;
+}
+.challenge .t::before { content: "⚡"; }
+
+/* ---------- 测验（quiz.js 组件） ---------- */
+.quiz {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 1.2rem 1.4rem;
+  margin: 1.6rem 0;
+}
+.quiz .q { margin: 1.4rem 0; }
+.quiz .q:first-child { margin-top: 0.3rem; }
+.quiz .q-text { font-weight: 600; margin-bottom: 0.6rem; }
+.quiz .opts { display: flex; flex-direction: column; gap: 0.5rem; }
+.quiz button.opt {
+  text-align: left;
+  font: inherit;
+  font-size: 0.96rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.quiz button.opt .tag {
+  flex: none; width: 1.3rem; text-align: center;
+  color: var(--muted); font-weight: 700; font-size: 0.85rem;
+}
+.quiz button.opt:hover:not(:disabled) { border-color: var(--accent); background: #fff; }
+.quiz button.opt:disabled { cursor: default; }
+.quiz button.opt.correct { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+.quiz button.opt.wrong   { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+.quiz .explain { display: none; margin-top: 0.7rem; font-size: 0.95rem; color: var(--ink-soft); border-top: 1px dashed var(--rule); padding-top: 0.6rem; }
+.quiz .q.done .explain { display: block; }
+.quiz .score {
+  text-align: right;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-top: 1rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.6rem;
+}
+.quiz .score b { color: var(--accent); }
+
+/* ---------- 术语/引用交叉链接 ---------- */
+.term { color: var(--accent); font-weight: 600; text-decoration: none; border-bottom: 1px dotted var(--accent); cursor: help; }
+.xref { display: inline-block; margin-top: 0.3rem; font-size: 0.95rem; }
+
+/* 图注式小字 / 副注 */
+.fn {
+  font-size: 0.88rem; color: var(--muted);
+}
+
+/* ---------- 术语表（reference 文档通用） ---------- */
+.gloss { counter-reset: gi; list-style: none; padding: 0; margin: 1.2rem 0; }
+.gloss > li {
+  counter-increment: gi;
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 0.2rem 1.2rem;
+  padding: 0.85rem 0.1rem;
+  border-bottom: 1px solid var(--rule);
+}
+.gloss > li::before {
+  content: none;
+}
+.gloss .en {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--accent);
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.gloss .zh { grid-column: 2; font-weight: 600; }
+.gloss .def { grid-column: 2; color: var(--ink-soft); font-size: 0.97rem; }
+.gloss .en .alt { display: block; font-weight: 400; color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; }
+@media (max-width: 560px) {
+  .gloss > li { grid-template-columns: 1fr; }
+  .gloss .en { grid-row: auto; }
+}
+
+/* 结尾链接带 */
+.lesson-nav {
+  margin-top: 3.5rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+.lesson-nav a { text-decoration: none; }
+.lesson-nav .next { text-align: right; }
+
+footer .colophon {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 步骤列表（动手环节常需编号走查） */
+ol.steps { counter-reset: step; list-style: none; padding-left: 0; }
+ol.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.6rem;
+  margin: 0.9rem 0;
+}
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0.15rem;
+  width: 1.7rem; height: 1.7rem;
+  background: var(--accent); color: #fff;
+  border-radius: 50%;
+  font-weight: 700; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ---------- 打印 ---------- */
+@media print {
+  body { background: #fff; font-size: 11.5pt; }
+  .lesson { max-width: 100%; padding: 0; }
+  h2 { page-break-after: avoid; }
+  pre, .quiz, .callout, .exercise, .challenge { page-break-inside: avoid; }
+  .quiz button.opt { border: 1px solid #999; }
+  a { color: inherit; text-decoration: none; }
+}

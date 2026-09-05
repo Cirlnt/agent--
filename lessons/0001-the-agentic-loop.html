@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 1 课 · Agent 的最小闭环</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 1 课 · 模块 M1 · 核心心智模型</div>
+  <h1 class="lesson-title">Agent 的最小闭环：<br>一次对话是怎么变成"智能体"的</h1>
+  <p class="lesson-sub">看懂这一个循环，你就看懂了 90% 的 Agent 框架。今天你会亲手跑起来一个会"自己决定调工具"的小程序。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 45–60 分钟</span>
+    <span class="chip">需要：一个 API key + Python 3.13（你已有）</span>
+    <span class="chip">花费：约几毛钱人民币的 token</span>
+  </div>
+
+  <p class="lede">
+    AI 应用工程师面试几乎必问一个题："什么是 Agent？它和一次 API 调用有什么区别？"
+    多数人答不上来，是因为他们只见过框架（LangGraph、OpenAI Agents SDK…）怎么"调用 Agent.run()"，
+    却从没见过这个函数内部真正在跑什么。今天我们把那层壳剥掉。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：先看穿"调用"与"循环"</h2>
+
+  <h3>一次大模型调用，本质是个无状态函数</h3>
+  <p>
+    你给 <code>client.messages.create(...)</code> 一段话（角色是 user），它返回一段话。
+    它没有记忆、没有主动性、不能动手——它只是一个"文本进、文本出"的函数。
+    <span class="term" title="见术语表">LLM call</span> 本身不会帮你订票、不会查数据库、不会写文件。
+  </p>
+
+  <p>
+    那 Agent 凭什么"能办事"？拆开看，它只比你平时多出 <strong>三样东西</strong>：
+  </p>
+  <ul>
+    <li><strong>工具（Tools）</strong>——你声明的"它可以调用的函数清单"，真正执行的是你的代码；</li>
+    <li><strong>可续的历史</strong>——每轮把对话原样积累下去，模型因此"记得"之前发生了什么；</li>
+    <li><strong>循环（Loop）</strong>——上面两者拼起来，反复"发请求→执行工具→喂回结果"，直到模型给出最终答案。</li>
+  </ul>
+
+  <p>
+    Anthropic 官方对 Agent 的定义，一句话就能讲透——它其实就是"<em>一个在循环里用工具干活的大模型</em>"
+    （原文："an agent is an LLM that is using tools to perform a task in a loop"）。
+    <cite>— <a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic, <i>Building Effective Agents</i> (2024)</a></cite>
+  </p>
+
+  <h3>Agentic loop：那 4 步的机器</h3>
+  <p>把这个循环画出来，是这一整课唯一必须记住的东西：</p>
+
+<pre>
+  你的程序(你的代码)                      大模型 API
+  ① 发消息(含历史+工具清单) ────────────►  读题、思考
+                                              │ 想要更多信息？
+                                              │ (例如"巴黎天气是多少？")
+  ② 收到 tool_use（含参数） ◄────────────  │
+     ↓
+  ③ 你执行 get_weather("巴黎")，拿到结果
+     │
+  ④ 把 tool_result 喂回去 ──────────────►  继续思考…
+                                              │ 足够回答了吗？
+  ②' 收到 tool_use ◄────────────────────    │  是 → 返回纯文本
+     ↓ (再执行、再喂，可反复)
+  ⑤ 直到返回 end_turn（纯文字答案）◄───────  这就是最终回答
+</pre>
+
+  <div class="callout info">
+    <span class="t">一句话记忆</span>
+    <p><strong>循环条件</strong>：模型返回 <code>tool_use</code> → 你执行工具 → 把结果喂回去 → 再来一轮。<br>
+    <strong>退出条件</strong>：模型返回 <code>end_turn</code>（纯文字答案）→ 停止，输出给用户。</p>
+  </div>
+
+  <p>
+    这四步有一个你以后会反复听到的名字：<span class="term" title="见术语表">ReAct</span>
+    （Reason→Act→Observation，推理、行动、观察）。Agentic loop 就是 ReAct 的工程实现——
+    面试时能主动说出这层关系，很加分。
+  </p>
+
+  <div class="callout warn">
+    <span class="t">反直觉提醒：不是越"自由"越好</span>
+    <p>
+      Anthropic 反复强调一个面试也爱考的观点：<strong>先分清楚你要的是 Workflow 还是 Agent。</strong>
+      Workflow = 路径由代码写死、LLM 只填空（更可控、更便宜、更好调试）；
+      Agent = 路径由模型自己定（更灵活，但更贵、更慢、更难预测）。
+      <em>"能用简单方案解决就别上 Agent"</em> 是他们的第一条建议——因为复杂度的代价是实打实的：多次调用叠延迟、token 翻倍、bug 更难查。
+      今天先记住这个判断，第 2 课起我们再逐个看它的模式。
+      <cite>— <a href="https://www.anthropic.com/engineering/building-effective-agents">同上，Anthropic</a></cite>
+    </p>
+  </div>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻代码。用记忆回答，答错没关系，重要的是"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">一个程序要被叫作 Agent（智能体），最本质的判据是什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="模型强不强不是判据——一个只会答一次的强模型依然不是 Agent。">
+          <span class="tag">A</span><span>它调用了最强的旗舰大模型</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。核心是"循环 + 模型自主决定是否调工具"，路径不由代码写死。">
+          <span class="tag">B</span><span>模型能在循环里自主决定调哪个工具</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="提示词再细，也只是"一次调用"做得更好，不是 Agent。">
+          <span class="tag">C</span><span>系统提示词写得非常详实</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="能存多轮对话只是"记忆"模块，单靠它构不成 Agent。">
+          <span class="tag">D</span><span>它能把多轮对话保存下来</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">手写循环时，看到 stop_reason == "tool_use"，程序该做什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="还没到输出的时候——模型是要调工具，不是要回答你。">
+          <span class="tag">A</span><span>把这段文字直接给用户并退出</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。执行模型点名的工具，把 tool_result 按 id 喂回去，然后 continue 继续下一轮。">
+          <span class="tag">B</span><span>执行对应工具，回填结果，继续循环</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="换模型不解决问题——它本来就想调工具，你得让它"调用完"。">
+          <span class="tag">C</span><span>换一个更大的模型重发一次请求</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="清历史会丢掉前文，模型更答不对，而且这不是处理工具调用的方式。">
+          <span class="tag">D</span><span>清空全部历史再重新请求</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">工具 get_weather 真正"执行"的代码，是谁在跑？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="大模型只"点单"不"做菜"——它返回参数，由你的程序执行。">
+          <span class="tag">A</span><span>大模型自己在云端执行</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。工具 = 你注册给模型的函数，真正跑的是你进程里的 Python 函数。这也是安全边界所在。">
+          <span class="tag">B</span><span>你程序里的那个 Python 函数</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="JSON Schema 只是"说明书"，描述参数，不执行任何东西。">
+          <span class="tag">C</span><span>工具的 JSON Schema 定义</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="与浏览器无关；即便有前端，干活的仍是你的后端代码。">
+          <span class="tag">D</span><span>浏览器里的某个前端页面</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">关于 Workflow 与 Agent，Anthropic 的建议是哪一条？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="正相反——复杂度有实打实代价（延迟、token、难调试）。">
+          <span class="tag">A</span><span>任何任务都应优先上 Agent</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。先上最简方案，用评估证明确有需要，再升级到 Agent。">
+          <span class="tag">B</span><span>能上 Workflow 就不要上 Agent</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="灵活 ≠ 更准。对固定任务，写死路径的 Workflow 往往更稳定可预测。">
+          <span class="tag">C</span><span>Agent 一定比 Workflow 更准确</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="跟上下文窗口大小没关系，是"谁在定路径"的区别。">
+          <span class="tag">D</span><span>Workflow 需要更大的上下文窗口</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：把一个真 Agent 跑起来（约 20 分钟）</h2>
+  <p>环境我已经帮你确认过：Python 3.13.5 ✅，SDK 已装好，而且下面这段代码我已在你的机器上实测跑通。</p>
+
+  <div class="callout info">
+    <span class="t">适配你的真实环境：DeepSeek 的 Anthropic 兼容端点</span>
+    <p>你没有直连 Anthropic，而是 Claude Code 走了 <b>DeepSeek 官方的 Anthropic 兼容端点</b>（<code>https://api.deepseek.com/anthropic</code>），key 是 DeepSeek 平台的 <code>sk-</code> key。好消息：这个端点兼容 Anthropic 的 Messages API，<b>代码写法与真 Anthropic 完全一致</b>，只需——① 模型名用 <code>deepseek-v4-flash</code>（要更强就 <code>deepseek-v4-pro[1M]</code>）；② 让运行脚本的终端看得到两个环境变量（base URL + token）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 准备环境与 key</span>
+    <ol class="steps">
+      <li>建一个练习目录并激活虚拟环境（避免污染全局）：
+<pre>mkdir agent-lab
+cd agent-lab
+python -m venv .venv
+.venv\Scripts\activate    <span class="c"># Windows。看到命令行前出现 (.venv) 即成</span></pre>
+      </li>
+      <li>装 Anthropic SDK：
+<pre>pip install anthropic</pre>
+      </li>
+      <li>
+        让运行脚本的终端能看到 DeepSeek 端点的两个环境变量（SDK 会自动读取）。先检查是否已有：
+<pre><span class="c"># cmd 里查看：</span>
+echo %ANTHROPIC_BASE_URL%
+echo %ANTHROPIC_AUTH_TOKEN%
+<span class="c"># PowerShell 里查看：</span>
+echo $env:ANTHROPIC_BASE_URL
+echo $env:ANTHROPIC_AUTH_TOKEN</pre>
+        如果为空，手动设一下（key 在 <a href="https://platform.deepseek.com">platform.deepseek.com → API Keys</a> 创建/查看）：
+<pre><span class="c"># cmd：</span>
+set ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+set ANTHROPIC_AUTH_TOKEN=sk-你的DeepSeekkey
+<span class="c"># PowerShell：</span>
+$env:ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
+$env:ANTHROPIC_AUTH_TOKEN = "sk-你的DeepSeekkey"</pre>
+        <span class="fn">⚠️ key 像密码，别写进代码文件、别提交到 Git。正式做项目用 <code>.env</code> 加 <code>python-dotenv</code>，后续课会教。</span>
+      </li>
+    </ol>
+  </div>
+
+  <div class="callout do">
+    <span class="t">第 2 步 · 运行最小 Agent（我已经帮你写好，文件在工作区）</span>
+    <p>完整代码在 <code>D:\agent学习\code\0001-minimal-agent.py</code>。你也可以对照下面自己敲一遍——自己敲一遍记得更牢。</p>
+<pre><span class="c"># minimal_agent.py — 最小的"智能体"：一个会查天气的循环
+# （你的环境 = DeepSeek Anthropic 兼容端点，代码与真 Anthropic 一致）</span>
+import sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")   <span class="c"># Windows 防乱码</span>
+import anthropic
+
+MODEL = "deepseek-v4-flash"   <span class="c"># 想更强换成 "deepseek-v4-pro[1M]"</span>
+
+client = anthropic.Anthropic()   <span class="c"># 自动读 ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN</span>
+
+<span class="c"># --- 1) 工具的真实执行代码：在你这里，不在模型那里 ---</span>
+def get_weather(city: str) -&gt; str:
+    <span class="s">"""查询某城市当前天气（教学用假数据，真实场景换成调天气 API）"""</span>
+    table = {<span class="s">"北京"</span>: <span class="s">"晴，18°C"</span>, <span class="s">"上海"</span>: <span class="s">"多云，23°C"</span>,
+             <span class="s">"巴黎"</span>: <span class="s">"雨，14°C"</span>,  <span class="s">"纽约"</span>: <span class="s">"晴，26°C"</span>}
+    return table.get(city, <span class="s">f"暂无 {city} 的天气数据"</span>)
+
+<span class="c"># --- 2) 把工具"说明书"给模型看：名字/说明/参数结构 ---</span>
+TOOLS = [{
+    <span class="s">"name"</span>: <span class="s">"get_weather"</span>,
+    <span class="s">"description"</span>: <span class="s">"查询某个城市的当前天气。当用户问天气时使用。"</span>,
+    <span class="s">"input_schema"</span>: {
+        <span class="s">"type"</span>: <span class="s">"object"</span>,
+        <span class="s">"properties"</span>: {<span class="s">"city"</span>: {<span class="s">"type"</span>: <span class="s">"string"</span>,
+                              <span class="s">"description"</span>: <span class="s">"城市名，如：北京"</span>}},
+        <span class="s">"required"</span>: [<span class="s">"city"</span>],
+    },
+}]
+EXEC = {<span class="s">"get_weather"</span>: get_weather}   <span class="c"># 名字 → 真实函数</span>
+
+<span class="c"># --- 3) 对话历史从这里开始 ---</span>
+messages = [{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"帮我查一下巴黎现在的天气怎么样？"</span>}]
+
+<span class="c"># --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---</span>
+while True:
+    response = client.messages.create(
+        model=MODEL, max_tokens=<span class="n">4096</span>, tools=TOOLS, messages=messages,
+    )
+
+    <span class="c"># 情况一：模型想调工具 → 执行它，把结果喂回去，继续循环</span>
+    if response.stop_reason == <span class="s">"tool_use"</span>:
+        messages.append({<span class="s">"role"</span>: <span class="s">"assistant"</span>, <span class="s">"content"</span>: response.content})
+        results = []
+        for block in response.content:
+            if block.type == <span class="s">"tool_use"</span>:
+                print(<span class="s">f"✳ 模型想调用: {block.name}({block.input})"</span>)
+                output = EXEC[block.name](**block.input)   <span class="c"># ← 真正执行的是你</span>
+                results.append({<span class="s">"type"</span>: <span class="s">"tool_result"</span>,
+                                <span class="s">"tool_use_id"</span>: block.id,   <span class="c"># id 必须对上</span>
+                                <span class="s">"content"</span>: output})
+        messages.append({<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: results})
+        continue
+
+    <span class="c"># 情况二：模型给最终文字答案 → 输出并结束</span>
+    if response.stop_reason == <span class="s">"end_turn"</span>:
+        final = next(b.text for b in response.content if b.type == <span class="s">"text"</span>)
+        print(<span class="s">"✓ 最终答案："</span>, final)
+        break
+
+    <span class="c"># 其它停止原因（截断/拒答等）——后续课程专门处理</span>
+    print(<span class="s">f"! 意外停止：{response.stop_reason}"</span>)
+    break</pre>
+    <p>运行：<code>python minimal_agent.py</code>。你应当看到类似输出：</p>
+<pre>[工具请求] 模型想调用: get_weather({'city': '巴黎'})
+最终答案：巴黎现在在下雨，气温大约 14°C，出门记得带伞。</pre>
+  </div>
+
+  <p>恭喜——你刚刚目睹了 Agent 的全部秘密：<strong>模型并没有"联网查天气"，它是"想用工具"→ 你执行 → 它读结果 → 组织成一句话</strong>。它甚至不知道工具背后是假数据还是真 API——这层"不知道"正是 Agent 架构自由度的来源。</p>
+
+  <div class="challenge">
+    <span class="t">第 3 步 · 两道挑战（做第 1 道就算本课完成）</span>
+    <p><strong>挑战 A（必做，2 分钟）</strong>：把用户问题改成 <code>"你好！"</code>，再跑一次。观察它<em>没有调用任何工具</em>、直接 end_turn 返回——这证明"调不调工具"是模型根据语境<strong>自己决定</strong>的，而不是脚本写死。</p>
+    <p><strong>挑战 B（加分，10 分钟）</strong>：给它加第二个工具 <code>get_current_time</code>（返回 <code>datetime.now()</code> 的实时时间，不需要参数，<code>input_schema</code> 用 <code>{"type":"object","properties":{}}</code>）。然后问：<code>"现在北京时间几点？巴黎天气如何？"</code> 观察它<strong>并行</strong>调用两个工具——因为我们的循环遍历了 <code>response.content</code> 里的<em>所有</em> tool_use 块。</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（这是最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话，把下面这段讲给空气听（或发给老师我，我来点评）：<br>
+    <em>"Agent 与一次 LLM 调用的区别是 ______。它的循环是：先 ____；如果模型返回 tool_use 就 ____，然后把 ____ 喂回去；直到它返回 ____ 才停。工具的副作用由 ____ 执行，模型只负责 ____。"</em><br>
+    填不出来就翻回第 1 节重看再讲——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 跑起来了一个手写 agentic loop 的 Agent，亲眼看它"自己决定调工具"</li>
+    <li>✅ 建立了"工具由你执行、模型只点单"的安全心智</li>
+    <li>✅ 拿到了全套术语（<a href="../reference/glossary-core-terms.html">术语表</a>）</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source，30 分钟，读得慢也值得）</span>
+    <p><a href="https://www.anthropic.com/engineering/building-effective-agents"><i>Building Effective Agents</i> — Anthropic Engineering Blog</a><br>
+    本课的引用来源。请至少精读 <strong>"Workflows vs. Agents"</strong> 和 <strong>五个模式的名字</strong> 两节。读完你会在面试时多一层"这人是读过原典的"的底气。英文有障碍可以对照 <a href="https://github.com/machinedge/building-effective-agents/blob/main/building-effective-agents.md">GitHub 上的 Markdown 版</a> 逐段看。</p>
+    <p class="fn">顺便建立一张地图：你今天手写的循环，就是 OpenAI Agents SDK、Claude Agent SDK 内部替你封装好的东西（<a href="https://code.claude.com/docs/en/agent-sdk">Agent SDK 文档</a> / <a href="https://openai.github.io/openai-agents-python/">OpenAI Agents SDK</a>）。先手写、再拥抱框架，是理解"框架到底省了你什么"的唯一顺序。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>有任何不清楚的——不管是"为什么 tool_result 要放在 user 消息里"，还是"为什么 id 必须对上"，还是想让我检查你挑战 B 的代码——直接回来问我。我就是你的老师，随时可以展开讲、出题考你、或帮你把代码跑通。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M2 · 工具是"说明书"：description 与 schema 的雕琢（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 1 课 · Agent 开发冲刺课 · 完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
