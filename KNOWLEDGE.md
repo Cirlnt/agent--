@@ -101,4 +101,47 @@ Agent = **一个在循环里自主决定调用工具干活的大模型**（Anthr
 
 ---
 
-*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅。完成新课请按顶部模板追加一节。*
+## 第 3 课 · 让模型交出结构化数据：三种拿 JSON 的姿势 · M2
+
+### ① 一句话核心
+程序要的是**数据（dict）**，模型给的是**文本**。让模型"只输出 JSON"是把格式押在它守规矩上（软）；更稳的是**工具即输出**——定义一个输出工具、让模型用 `tool_use` 把答案"交"回来，你从 `block.input` 拿到的天生就是 dict，还被 `input_schema`（required/enum/类型）约束。**tool_use 本来就是免费的结构化输出。**
+
+### ② 心智模型
+- **两条通道，同一机制**：
+  - 输入端（第 2 课）：定义 `get_weather` 的 schema → 模型把参数 city 传回 → 你 EXEC 执行、喂回结果。
+  - 输出端（本课）：定义 `submit_request` 的 schema → 模型把答案（action/target/when）装进参数传回 → 你**不执行**，直接读 `block.input`。
+  - 差别只在"这一单算不算副作用"由你决定；正因工具调用可无副作用，它才能当**纯数据通道**用（第 1 课"模型从不执行工具"的另一面 = 自由度来源）。
+- **三条路，软→硬**：
+  - 姿势① 用嘴求（prompt"只输出 JSON"）→ 输出是**文本**，要再 json.loads；格式由模型"赏"（围栏/前后缀/尾逗号/截断为空）→ 软、赌守规矩。
+  - 姿势② 工具即输出 → block.input 天生 dict，机器通道编解码、schema 约束 → 硬（本课主菜）。
+  - 姿势③ 服务端"强制"开关（Anthropic `tool_choice` 指名 / OpenAI `response_format`+`strict`）→ 最硬，但**端点实现各异，要实测别假设**。
+- **"格式稳" ≠ "内容对"**：schema 管结构管不了语义（第 2 课域内偷换输出侧变体）；语义靠 eval。required 慎用——逼模型填一个推不出的必填字段 = 逼它幻觉。
+
+### ③ 要点清单
+- [ ] 裸 JSON 是**文本**：可能干净、可能带 ```json 围栏 / 前后缀 / 尾逗号 / 被 max_tokens 截断为空 → json.loads 崩。能解析靠它守规矩，不是你的锁。
+- [ ] 出口工具用法：schema 写清 `required` / `enum` / 字段 description；模型要答复就必须调用它交答案 → `block.input` 是 dict，**全程无 json.loads**。
+- [ ] 强制必走出口：Anthropic `tool_choice={type:"tool",name}`、OpenAI `response_format=json_schema`；生产兜底 = 代码查 `stop_reason=="tool_use"`，不是就走重试/报错。
+- [ ] 出口工具**不加进 EXEC**：它是数据出口不是"要执行的事"；循环里发现 `block.name=="report_x"` 就打印 input 并 break。
+- [ ] `additionalProperties:false` = 合同"声明"，**不是物理拦截**；模型会把多余信息塞进自由文本字段（最省力偷换）→ 真拦靠自己代码验。
+- [ ] max_tokens 是文本+思考**共享预算**：给太小时 thinking 可吃光 → 空文本 + `stop_reason=max_tokens`；工具参数随 tool_use 结构返回，不抢这个文本预算。
+
+### ④ 实测发现（DeepSeek v4-flash / Anthropic 兼容端点）
+- 裸 JSON：flash **相当守规矩**——干净句、连 target 要带 ASCII 引号（`老板说"周六前务必回邮件"`）都自己转义好、直接 loads 成功；一旦让它"再给句人话确认"，输出即变 `好的，已记下。\n{...}` → 直接 loads 崩，得手写剥除（打地鼠）。
+- `tool_choice={type:"tool",name}` 指名强制 → **400**："Thinking mode does not support this tool_choice"；`{type:"any"}` 可用且强制走工具（单输出工具时≈指名）。
+- `additionalProperties:false` 实测不物理拦；模型不硬加 schema 外键，而是把"预算3000靠窗"整句塞进自由文本 target。
+- 挑战模式（数据工具→回填→出口工具收尾）：模型在该描述下守规矩走 `report_weather` 收尾、不再给自然语言结语。
+
+### ⑤ 工程陷阱与面试追问
+- 面试题「怎么让模型稳定返回可解析的 JSON？」→ 答：工具即输出 + schema 锁 + （代码查 stop_reason/重试），不是"请输出 JSON"写三遍。
+- 面试题「工具 schema 跟输出结构有什么关系？」→ 同一机制两用：输入端锁参数、输出端锁结构；答出"模型从不在 text 里手写 JSON 给我，它把结构装进 tool_use 参数交回来"最加分。
+- 陷阱：裸 JSON 的解析崩盘是**运行时才知道**的意外；"服务端强制"不是跨厂商通用（端点实测 400 是常态功课）；required 滥用制造幻觉。
+- 埋点：出口工具与"真工具"混在同一 TOOLS 时怎么防调错 → 留给下一课（system prompt vs description 分工 / prompt 工程）。
+
+### ⑥ 术语·厂商对照·原典
+- 术语：structured output / 工具即输出（tool-as-output, emit pattern）/ tool_use.input / tool_choice / additionalProperties / strict / response_format / 意图路由（intent routing）/ json.loads 打地鼠。
+- 厂商对照：Anthropic 无独立 "JSON mode"，结构化输出 = 工具即输出 + `tool_choice`；OpenAI = `response_format:{"type":"json_schema"}`（老版 `json_object`）+ `strict:true` 服务端强校验；DeepSeek 原生 API 另有一套 JSON mode（本课端点不展开）。概念一一对应，命名/行为各不同 → 实测为准。
+- 原典（必读）：Claude 官方 **Tool use** 文档 "Forcing tool use / tool schema" 段（`platform.claude.com → Tool use`）；对照 OpenAI **Structured Outputs** 文档（`response_format`+strict）。
+
+---
+
+*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅ ｜ 第 3 课（M2，已交付，实证随用户完成回填）。完成新课请按顶部模板追加一节。*

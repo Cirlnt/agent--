@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 3 课 · 让模型交出结构化数据：三种拿 JSON 的姿势</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 3 课 · 模块 M2 · 工程地基</div>
+  <h1 class="lesson-title">让模型交出结构化数据：<br>三种拿 JSON 的姿势</h1>
+  <p class="lesson-sub">前两课管住了"输入"：工具该不该调、参数传得对不对。这一课接管"输出"——当程序需要的不是一句人话，而是一份能直接拿去用的结构时，你会看到：最稳的那份 JSON，不是模型"说"出来的，是它"交"出来的。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 60–80 分钟</span>
+    <span class="chip">需要：第 2 课跑通的环境（venv + 环境变量）</span>
+    <span class="chip">花费：几毛钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官考 tool calling 时，有两个姊妹题：<em>"怎么让模型稳定调对工具、传对参数？"</em>（第 2 课）
+    和 <em>"怎么让模型稳定吐出一份可直接解析的 JSON？"</em>（本课）。
+    新手对付第二题是写 prompt：<code>"请只输出 JSON，不要别的文字"</code>；
+    老手的答案你没猜错——还是<strong>把 schema 当合同，靠契约不靠祈祷</strong>。今天把这句话从"输入侧"原样搬到"输出侧"。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：程序要的是"数据"，模型给的是"文本"</h2>
+
+  <h3>先分清：你要的是人话，还是能直接用的结构？</h3>
+  <p>
+    一个 LLM 应用，大多数时候不是为了让你"读一段话"。你把模型输出要<strong>喂给下游</strong>：
+    存进数据库、调一个函数、渲染成表格、或喂给下一个组件。下游要的不是句子，是<strong>结构</strong>。
+    拿一句用户话举例——<code>"帮我查一下后天上海天气怎么样"</code>——真正有用于下游的是抽出来的这份 dict：
+  </p>
+<pre>{
+  <span class="s">"action"</span>: <span class="s">"查天气"</span>,
+  <span class="s">"target"</span>: <span class="s">"上海"</span>,
+  <span class="s">"when"</span>:   <span class="s">"后天"</span>,
+}</pre>
+  <p>
+    这就是"<strong>意图路由</strong>"：很多真实 Agent 的第一站，就是把自由文本翻译成结构化指令，再拿去决定"该调哪个工具、传什么参"。
+    问题只剩一个：<strong>这份 dict 怎么到手？</strong>
+  </p>
+
+  <h3>三条路，从软到硬</h3>
+  <ol class="steps">
+    <li>
+      <strong>姿势① 用嘴求它：</strong>"只输出 JSON" → 它给你的是<strong>一段文本</strong>。
+      文本就得<em>再解析</em>（<code>json.loads</code>），而"模型写的 JSON 好不好解析"完全不在你控制里——它可能加围栏、加前后缀、多一个尾逗号，甚至被 <code>max_tokens</code> 截断成空。软，赌模型守规矩。
+    </li>
+    <li>
+      <strong>姿势② 工具即输出（本课主菜）：</strong>把<strong>结构定义成一个"输出工具"</strong>，让模型"要回答就必须调用它"。
+      于是它把答案装进工具参数，你从 <code>block.input</code> 拿到的<strong>天生就是 dict</strong>——因为工具调用本来就是机器通道，JSON 的编解码由端点替你完成，还受 <code>input_schema</code> 的 <code>required</code> / <code>enum</code> / 类型约束。硬。
+    </li>
+    <li>
+      <strong>姿势③ 服务端"强制"开关：</strong>Anthropic 的 <code>tool_choice</code> 指名、OpenAI 的 <code>response_format</code> + <code>strict</code>——在服务端就把"不走这个格式"挡掉。最硬，但<strong>每个端点实现不一样，要实测别假设</strong>（本课实验你会撞到一次 400）。
+    </li>
+  </ol>
+
+  <div class="callout info">
+    <span class="t">一句话记忆 / 反直觉核心</span>
+    <p><strong>tool_use 块，本来就是免费的结构化输出。</strong>
+    你在第 1、2 课已经在用了——每次模型调 <code>get_weather</code>，它传回来的 <code>block.input</code> 就是一个已经解析好的 dict，
+    你从来没对它做过 <code>json.loads</code>。本课只是把这个现成通道<strong>反过来用于"输出"</strong>：
+    定义工具不是为了"让它做事"，而是为了"让它把答案交给你"。</p>
+  </div>
+
+  <h3>同一套工具机制，输入输出两个用途</h3>
+<pre>
+输入端（第 2 课）：模型想"用工具做事"
+  你定义 get_weather 的 schema → 模型把参数 city 传回 → 你 EXEC 执行，喂回结果
+
+输出端（本课）　：模型想"把答案交给你"
+  你定义 submit_request 的 schema → 模型把答案(action/target/when)装进参数传回 → 你不"执行"，直接读 block.input
+
+同一个机制（tool_use + input_schema），差别只在你这一侧怎么处理它。
+</pre>
+  <p>第 1 课强调过"模型从不执行工具，只点单"——当时你把这当安全边界；本课你会发现它<em>正好也是</em>自由度的来源：正因为工具调用可以不触发任何副作用，它才能被当成一条<strong>纯数据通道</strong>用。</p>
+
+  <div class="callout warn">
+    <span class="t">诚实提醒：工具即输出 ≠ 一定走工具（三句话记牢）</span>
+    <p>
+      ① <strong>模型也可能直接开口说话</strong>（<code>end_turn</code> 给你一段文字）而不调用你的输出工具。所以镜 3 才用 <code>tool_choice</code> 尽量逼它；生产上你要自己检查 <code>stop_reason</code>，发现没走工具就重试或报错。<br>
+      ② <strong>"强制"开关看端点。</strong>DeepSeek 的 Anthropic 兼容端点实测：指名强制 <code>tool_choice={type:"tool",name:...}</code> 会 400（报错 <em>"Thinking mode does not support this tool_choice"</em>），而 <code>tool_choice={type:"any"}</code> 可用。真 Anthropic / OpenAI 又各有实现。<strong>别照搬文档假设，在你自己端点读报错。</strong><br>
+      ③ <strong>schema 管"格式"，管不了"内容对不对"。</strong>拿到 dict ≠ 全对（还记得第 2 课的"域内就近偷换"吗？）——格式稳了，语义对不对要靠 <em>eval</em> 盯。一个连模型都推不出的"必填字段"，只会逼它编一个假的（幻觉），所以 required 要慎用。
+    </p>
+  </div>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">想让模型"稳定"交出一份能直接解析的 JSON，老手的第一反应是？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="在 prompt 里把话重复三遍，只是把"软约束"说得更用力。模型输出的仍是文本，格式依旧是它"赏"的。">
+          <span class="tag">A</span><span>在 prompt 里把"必须输出 JSON、不要废话"连写三遍</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。定义一个输出工具，让模型用工具调用把答案交回来——block.input 天生是 dict，schema 的 required/enum 还约束它必须给全。这就是把 schema 当"输出合同"。"靠契约不靠祈祷"从输入侧搬到输出侧。">
+          <span class="tag">B</span><span>定义一个"输出工具"，让模型通过调用它来交答案，从 block.input 直接拿 dict</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="模型强不强，解决不了"输出带围栏/被截断"这类格式问题——那是通道设计问题，不是智力问题。">
+          <span class="tag">C</span><span>换一个更聪明的旗舰模型</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="人工校对只能兜住几个样本，撑不起生产；你要的是结构上就不容易错，而不是事后补救。">
+          <span class="tag">D</span><span>返回后让同事肉眼逐条校对</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">模型调用了 submit_request({'action': '设提醒', ...}) 之后，在 anthropic SDK 里 block.input 是什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="如果它是文本，才需要再 json.loads。但工具参数走的不是文本通道——端点已替你完成 JSON 编解码。">
+          <span class="tag">A</span><span>一个需要我再 json.loads 一次的字符串</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。block.input 已经是 Python dict。这就是"工具即输出"省掉的整整一类 bug：连"解析失败"都不存在了。">
+          <span class="tag">B</span><span>已经解析好的 Python dict</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="input_schema 是你在请求里写给模型看的定义，是"合同文本"；模型交回的是按合同填好的参数。">
+          <span class="tag">C</span><span>一串 JSON Schema 定义</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="不靠心情：工具参数的 JSON 编解码是机器通道保证的，这正是它比"让模型手写 JSON 文本"稳的地方。">
+          <span class="tag">D</span><span>不确定，得看模型当天心情</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">"只输出 JSON"的裸 prompt 为什么算"没上锁"？</p>
+      <div class="opts">
+        <button class="opt" data-correct="true" data-explain="对。模型输出的是文本，而"这段文本长什么样"由它说了算：今天可能干净，明天可能带 ```json 围栏、加句解释、多个尾逗号，甚至输出被 max_tokens 截断成空——json.loads 随时崩。能解析靠的是它守规矩，不是你的锁。">
+          <span class="tag">A</span><span>因为输出是文本，格式由模型"赏"：可能带围栏/前后缀/尾逗号，甚至被截断为空，json.loads 随时崩</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="JSON 没有"安全漏洞"这一说；问题在文本到数据的解析这一跳不可控。">
+          <span class="tag">B</span><span>因为 JSON 格式本身有安全漏洞</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="模型当然产出文本——恰恰因为它产出的是文本，才需要你再解析、才容易出问题。">
+          <span class="tag">C</span><span>因为模型从不会产出文本</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="token 开销是另一个话题；核心问题是不稳定，不是贵。">
+          <span class="tag">D</span><span>因为这样太烧 token</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">你想按 Anthropic 文档用 tool_choice={type:'tool', name:'submit_request'} 强制模型走输出工具，却在 DeepSeek 兼容端点撞到 400："Thinking mode does not support this tool_choice"。这说明什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="文档描述的是 Anthropic 官方端点的能力；你的端点只是"兼容"，不等于行为一模一样。先别急着怀疑自己。">
+          <span class="tag">A</span><span>一定是我代码写错了，Anthropic 文档不可能骗我</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="没依据。端点报错说的是 tool_choice 与它的 thinking 模式冲突，与换 pro 模型无关。">
+          <span class="tag">B</span><span>换成 deepseek-v4-pro 就一定解决</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。"服务端强制"是每个端点各自的实现，不跨厂商通用。正确姿势：在自己的端点实测、读报错原文，然后据此选兜底（本课：tool_choice any + 单输出工具，或代码里检查 stop_reason 重试）。">
+          <span class="tag">C</span><span>服务端"强制"开关不是每个端点都一样，要在自己端点上实测、读报错，再决定兜底</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="过了头。真 Anthropic / OpenAI 都支持各自的强制方案；结论是"要实测"，不是"永远别用"。">
+          <span class="tag">D</span><span>所以永远不要用工具强制这一招</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：同一句"人话"，三种姿势拿 JSON（约 30 分钟）</h2>
+  <p>核心思想：<strong>解析对象不是模型"说的文本"，就是从模型"交的参数"里取。</strong>同样一个问题，三种拿法，你亲手看差别。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境沿用第 1 / 2 课</span>
+    <p>激活第 1 课那个 venv、让终端看得到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>（忘了就翻第 1 课第 3 步）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 运行三姿势实验</span>
+    <p>文件已写好：<code>D:\agent学习\code\0003-structured-output-lab.py</code>。跑它：</p>
+<pre>python code/0003-structured-output-lab.py</pre>
+    <p>任务是<strong>意图路由</strong>：把一句用户"人话"抽成 <code>{action, target, when}</code>，去喂下游。你会依次看到：</p>
+<pre><span class="c"># 镜 1 · 裸 JSON：让模型把答案写成文本，你再 json.loads</span>
+镜 1a 干净句子   → 模型给了份干净的 JSON，直接解析 ✅    <span class="c">（看，"能跑"）</span>
+镜 1b 内容含引号 → 模型自己把引号转义好了 ✅             <span class="c">（它守规矩，不是你有锁）</span>
+镜 1c 你顺嘴要了句"人话确认" → 输出变成
+      好的，已记下。
+      {"action":"查天气", ...}
+      直接 json.loads(整段) ❌ 崩了；我们写的"剥围栏/剥前缀"逻辑才把它救回来
+      <span class="c">← 这就是"打地鼠"：每加一句需求/换一个模型，解析逻辑就要再补一个分支</span>
+
+<span class="c"># 镜 2 · 工具即输出：定义 submit_request 工具，让模型调用它交答案</span>
+✳ 模型调用 submit_request，block.input 的类型 = dict
+   block.input = {'action':'设提醒', 'target':'老板说"周六前务必回邮件"', 'when':'周六前'}
+   → 全程没调 json.loads；target 里的引号原样保留（转义是通道替你做的）
+
+<span class="c"># 镜 3 · tool_choice={'type':'any'}：逼这一轮必须走工具</span>
+（和镜 2 一样拿到 dict；stop_reason = tool_use）
+
+<span class="c"># 小实验 · 指名强制 tool_choice={type:'tool',name}（Anthropic 写法）</span>
+端点返回：400 "Thinking mode does not support this tool_choice"
+</pre>
+    <p>盯着 1c 多看两秒：<strong>不是你哪句 prompt 写错了——是你让模型"又说话又给 JSON"，它两样都做了，文本就不再纯净。</strong>
+    真实项目里开发者经常这样顺口加一句"回复礼貌一点/顺便解释一下"，于是解析就埋雷。这跟第 2 课的结论一致：模型不是坏，是它的输出天然是文本，格式由它赏。</p>
+  </div>
+
+  <div class="callout danger">
+    <span class="t">陷阱①（教师实测，必读）：裸文本还要跟"思考"抢 token 预算</span>
+    <p>
+      你用的是带 thinking 的模型。实测：<code>max_tokens</code> 给太小（如 512）时，它可能把预算全花在"思考"上，<strong>一个字正文都没吐出来</strong>，返回 <code>stop_reason = max_tokens</code> + 空文本——<code>json.loads("")</code> 直接崩。
+      所以课件脚本里我把裸 JSON 的预算提到了 4096。生产教训有两条：① 给足预算；② 永远先查 <code>stop_reason</code>（还记得第 1 课代码里那个"意外停止"分支吗？它就是干这个的）。而工具通道不受这个"与思考抢文本预算"的问题影响——工具参数是结构，跟着 <code>tool_use</code> 一起回来。
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">陷阱②：additionalProperties:false 不是物理拦截（教师实测）</span>
+    <p>
+      第 2 课留过这个钩子。实测结论：<code>additionalProperties:false</code> 写在 schema 里，本端点<strong>不会替你物理拒掉多余字段</strong>——模型真想把"预算 3000、靠窗"也塞进去时，它不大会硬加一个 schema 外的键，而更可能<strong>塞进某个自由文本字段里</strong>（镜 1b 的 target 就是这么把话都吞进去的）。这又是第 2 课"最省力偷换"的一个变体。
+      所以它的定位是：告诉模型（和人）"合同不欢迎多余字段"的<strong>声明</strong>；要不要真拦，靠你自己代码里验一遍。第 2 课那道白名单闸门，思路一模一样，只是这回验的是<strong>输出</strong>。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 15 分钟）· 给天气循环装一个"结构化出口"</span>
+    <p>回你的第 1/2 课循环脚本（那个会查天气的 <code>minimal_agent.py</code>）。它现在查完天气是用<strong>自然语言结语</strong>收尾的。我们给它加一个"出口工具" <code>report_weather</code>，让模型把最终答案<strong>以结构化字段交出来</strong>，而不是说一段人话。</p>
+    <ol>
+      <li>在 <code>TOOLS</code> 末尾追加一个出口工具：
+<pre>TOOLS.append({
+    <span class="s">"name"</span>: <span class="s">"report_weather"</span>,
+    <span class="s">"description"</span>: <span class="s">"★最终出口★ 已经查到天气、准备答复用户时，必须调用本工具把最终结果"
+                    "以结构化字段提交；提交后不要再输出任何自然语言总结。"</span>,
+    <span class="s">"input_schema"</span>: {
+        <span class="s">"type"</span>: <span class="s">"object"</span>,
+        <span class="s">"properties"</span>: {
+            <span class="s">"city"</span>:      {<span class="s">"type"</span>: <span class="s">"string"</span>},
+            <span class="s">"condition"</span>: {<span class="s">"type"</span>: <span class="s">"string"</span>,
+                             <span class="s">"description"</span>: <span class="s">"从 get_weather 拿到的天气串，形如：多云，23°C"</span>},
+        },
+        <span class="s">"required"</span>: [<span class="s">"city"</span>, <span class="s">"condition"</span>],
+    },
+})</pre>
+      </li>
+      <li>在拿到 <code>response</code> 之后、处理 <code>tool_use</code> 之前，加一段"出口检测"：一旦发现模型调了 <code>report_weather</code>，就把它当<strong>最终答案</strong>，打印后退出循环（<strong>不要</strong>把它当普通工具去 <code>EXEC</code> 执行）：
+<pre>exit_payload = <span class="k">None</span>
+<span class="k">for</span> block <span class="k">in</span> response.content:
+    <span class="k">if</span> block.type == <span class="s">"tool_use"</span> <span class="k">and</span> block.name == <span class="s">"report_weather"</span>:
+        exit_payload = block.input     <span class="c"># 出口工具：数据在参数里，不用"执行"它</span>
+<span class="k">if</span> exit_payload <span class="k">is not</span> <span class="k">None</span>:
+    print(<span class="s">"✅ 结构化最终输出："</span>, exit_payload)
+    <span class="k">break</span></pre>
+      </li>
+      <li>问它：<code>"帮我查一下上海现在的天气"</code>，跑。</li>
+    </ol>
+    <p><strong>观察并回答我：</strong>① 模型是不是先调 <code>get_weather</code>、再走 <code>report_weather</code> 收尾？② 最终答案现在是文本还是 dict？③ 哪天它偷懒没走 <code>report_weather</code>、直接用自然语言结束了（<code>stop_reason = end_turn</code>），你的程序<em>能发现</em>吗？——想一想：对"必须结构化"的任务，生产里该怎么兜住第③种情况？（提示：查 <code>stop_reason</code> 是不是 <code>tool_use</code>，不是就重发一次提示或报错。）</p>
+    <p class="fn">小坑预告：<code>report_weather</code> 不要加进 <code>EXEC</code>（它不该被"当工具执行"，它是数据出口）；挑战 A 第 2 步的检测放在 <code>EXEC[block.name](**block.input)</code> 之前即可。</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 15 分钟）· 做你的第一张小 eval 表</span>
+    <p>把 <code>0003-structured-output-lab.py</code> 复制一份，写一个小循环：用 8 句测试话，<strong>裸 JSON（镜 1）</strong> 和 <strong>工具即输出（镜 2）</strong> 各跑一遍，分别统计"一次 <code>json.loads</code> 就成功"和"稳定拿到 dict"的次数，打成一张对比表。</p>
+<pre>TEST = [
+    <span class="s">"帮我查一下后天上海天气怎么样"</span>,
+    <span class="s">'记下：老板说"周六前务必回邮件"'</span>,
+    <span class="s">'把周五开会改成周六，顺便把老板的"先把方案给我"也加进去'</span>,
+    <span class="s">"那……算了还是订周四去深圳的机票吧，谢谢"</span>,
+    <span class="s">"提醒我 12 点吃药"</span>,
+    <span class="s">"我只是想问问今天几号"</span>,
+    <span class="s">"帮我订三张周六早上从北京飞上海的票，预算 3000 以内"</span>,
+    <span class="s">"月底前整理好所有发票并打印出来"</span>,
+]</pre>
+    <p>这 8 句覆盖了：干净句、含引号、带自我修正、带语气词、缺字段、跨领域。对比完回答：两种姿势的"成功率"差多少？为什么镜 2 没有"解析失败"这一栏？
+    这——统计一组固定输入上的表现、量化它稳不稳——<strong>就是 eval 的原型</strong>，面试里"模型输出不稳定怎么办"的答案落点。（省钱提示：先跑前 3 句也够看趋势。）</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"程序要的不是____而是____。让模型把答案写成 JSON 文本再解析，那输出是____，格式是模型____的，
+    可能带 ____ / ____ / 甚至被截断成 ____，json.loads 会____。<br>
+    更稳的做法是定义____工具，让模型用____的方式把答案交回来，我从 block.input 拿到的就是____，
+    它还被 schema 的 ____ / ____ 约束；<br>
+    想让模型'一定走这个出口'，Anthropic 用 ____，OpenAI 用 ____，但都要 ____，
+    因为不同端点的行为可能不一样。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 亲手对比三种拿 JSON 的姿势，看见"裸 JSON 是文本、靠模型赏" vs "工具即输出、天生 dict"</li>
+    <li>✅ 把第 2 课"靠契约不靠祈祷"焊到输出侧：schema = 输出合同，出口工具是那条机器通道</li>
+    <li>✅ 拿到两处实测：裸文本会跟思考抢预算被截断；additionalProperties 不是物理锁</li>
+    <li>✅ 给天气循环装上了"结构化出口"，还埋了"第一张 eval 表"（面试亮点的雏形）</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use">Tool use — Claude（Anthropic 官方文档）</a><br>
+    这次精读 <strong>"Forcing tool use" 与 tool schema 段落</strong>：看官方如何用"定义一个工具 + <code>tool_choice</code>"来做结构化输出——你会发现你今天手写的出口工具，就是官方推荐姿势的简化版。官方那句 <em>"the tool use API returns JSON that adheres to your schema"</em>，正是本课"工具即输出"的依据。</p>
+    <p class="fn">厂商对照（求职加分，知道映射即可）：Anthropic 没有独立的 "JSON mode"，结构化输出=工具即输出；OpenAI 提供原生的 <code>response_format: {"type": "json_schema"}</code>（老版 <code>json_object</code>）+ <code>strict: true</code> 服务端强校验，可对照 <a href="https://developers.openai.com/api/docs/guides/structured-outputs">OpenAI Structured Outputs 文档</a> 看。概念一一对应，实现名不同——而你的 DeepSeek 端点两者都不完全一样，这正是要"实测别假设"的活例子。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把你观察到的输出发我，我点评你练到了哪一层。也欢迎带着这些问题回来：
+    一个字段到底该不该放进 required（放了会不会逼模型编）？出口工具和"真工具"混在同一个 TOOLS 里时怎么防止模型调错？"格式稳了"之后，怎么量化"内容对不对"（就是挑战 B 那张表往深走的方向）？</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M2 · 提示词工程：system prompt 怎么写，以及"该写 system 还是写进 description"的分工（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 3 课 · Agent 开发冲刺课 · 完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
