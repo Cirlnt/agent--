@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 2 课 · 工具的说明书：description 与 schema 的雕琢</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 2 课 · 模块 M2 · 工程地基</div>
+  <h1 class="lesson-title">工具的说明书：<br>description 与 schema 的雕琢</h1>
+  <p class="lesson-sub">第 1 课的循环只保证"能调工具"。这一课解决"调得准、传得对"——而你马上会看到：答案不在模型里，在工具的那张三行字说明书里。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 50–70 分钟</span>
+    <span class="chip">需要：第 1 课跑通的环境（venv + 环境变量）</span>
+    <span class="chip">花费：几毛钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官考 tool calling 时最常追问："你怎么保证模型<em>稳定地</em>调对工具、传对参数？"
+    新手会把希望寄托在"换个更聪明的模型"上；老手会反手掏出工具的 <strong>description</strong> 和
+    <strong>input_schema</strong>。今天我们就看看，为什么这张"说明书"值得像雕琢玉器一样对待。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：模型看你的工具，只有一张"说明书"</h2>
+
+  <h3>它对 get_weather 的全部了解，就是你给的那三行字</h3>
+  <p>
+    第一课我们讲过：模型从<em>不执行</em>工具，它只"点单"。那它是根据什么决定"点哪个菜、怎么点"的？
+    很多人以为是"函数写得清楚、docstring 写得详细"。错了——
+    函数体、docstring、你写在注释里的提醒，<strong>模型一个都看不到</strong>。
+    它对一个工具的全部了解，是 <code>TOOLS</code> 列表里那一个字典的三个字段：
+  </p>
+<pre>TOOLS = [{
+  <span class="s">"name"</span>: <span class="s">"get_weather"</span>,            <span class="c"># ① 名字：让模型认出"该调它"</span>
+  <span class="s">"description"</span>: <span class="s">"查询某城市天气…"</span>,    <span class="c"># ② 说明书正文：软引导</span>
+  <span class="s">"input_schema"</span>: {<span class="c">…参数怎么写…</span>},      <span class="c"># ③ 参数清单：强约束</span>
+}]</pre>
+  <div class="callout info">
+    <span class="t">一句话记忆</span>
+    <p><strong>工具的真实行为写在你的代码里；工具在模型眼里的形象，只由这三行字决定。</strong>
+    说明书与实际能力对不上，模型就会"按说明书点单、点出一个你做不出的菜"。</p>
+  </div>
+
+  <h3>三个字段，三种不同的"力道"</h3>
+  <ul>
+    <li><strong>name（名字）</strong>——让模型在工具清单里一眼认出该调它。用"动词+名词"，如 <code>get_weather</code>、<code>send_email</code>。别起 <code>handle_info</code>、<code>do_thing</code> 这种"谁都能是它"的名字。</li>
+    <li><strong>description（正文）——软引导</strong>：模型"倾向"着做对。写得好，它大多会照办；但它只是"倾向"。</li>
+    <li><strong>input_schema（参数清单）——强约束</strong>：直接把"模型能传什么"框死。<code>type</code>、<code>required</code>、<code>enum</code> 一上，模型想传非法值都传不出来。</li>
+  </ul>
+
+  <div class="callout warn">
+    <span class="t">反直觉提醒：最值钱的是"负例"和"锁"，不是文采</span>
+    <p>
+      新手雕 description，多半在纠结"措辞够不够像人"。其实模型乱调工具，<strong>九成不是因为没看懂你的话，而是因为你没告诉它"什么时候别用它、它做不到什么"</strong>。
+      这一课核心就两句：<br>
+      ① <strong>description 里最值钱的是负例</strong>（不支持的输入、不该调用的场景）；<br>
+      ② <strong>能靠 schema 锁死的，就别靠 description 劝说</strong>——工程上这叫"靠契约，不靠祈祷"。
+    </p>
+  </div>
+
+  <h3>好 description 的四问清单（收藏它，写任何工具都用得上）</h3>
+  <p>写 description 前，逐条回答下面四问，把它们落进文字里：</p>
+  <ol class="steps">
+    <li><strong>什么时候该用它？</strong> 触发条件要具体："用户问某城市天气时"，而不是"用户需要信息时"。</li>
+    <li><strong>它返回什么？</strong> 让模型知道"这东西够不够回答用户"。返回格式给个样例："形如：晴，18°C"。</li>
+    <li><strong>它的边界是什么？</strong> 支持哪些、<em>不支持哪些</em>（负例！）。"仅支持：北京、上海、巴黎、纽约"。</li>
+    <li><strong>什么时候<em>不该</em>用它？</strong> "用户问其它城市，直接告诉暂不支持，不要调用本工具。"——这一句能救你一整晚。</li>
+  </ol>
+
+  <h3>schema 是"合同"：它必须和你的函数签名对齐</h3>
+  <p>
+    别忘了第一课的安全边界：<strong>模型点单，你做菜</strong>。模型按 schema 猜参数，你的 <code>EXEC[name](**block.input)</code> 按函数签名接单。
+    这两套"词"是同一份合同的两面——<code>input_schema</code> 说 <code>city</code> 是必填 string，你的
+    <code>def get_weather(city: str)</code> 就真的得能接一个 string 且不许是 <code>None</code>。
+    <strong>合同对不上时，错得最隐蔽：请求不报 400，而是等你执行到那行才 <code>TypeError</code> 崩给你看。</strong>
+  </p>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">模型对工具 get_weather 的了解，来自哪里？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="函数体、docstring、注释模型统统看不到。你写在里面的“贴心提示”它一个字都读不到。">
+          <span class="tag">A</span><span>函数体 + 它的 docstring（我写进代码里的它都看得见）</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。只有 TOOLS 里的 name + description + input_schema。这就是它对这个工具的全部了解——所以这三行字值得雕琢。">
+          <span class="tag">B</span><span>TOOLS 里的 name、description、input_schema 三个字段</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="那是给用户看的 UI，不是给模型的；模型只认 TOOLS 里的说明书。">
+          <span class="tag">C</span><span>前端页面里的下拉框和说明文字</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="模型没有“读源码”的能力；它只收到你随请求带上的工具清单。">
+          <span class="tag">D</span><span>我项目仓库里的全部源代码</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">description 里最容易被新手漏掉、却最能防止"模型硬调一个做不到的工具"的是哪一条？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="语气再客气也改变不了“该不该调”。模型不需要被哄。">
+          <span class="tag">A</span><span>把语气写得礼貌、热情</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。模型最常栽在“想帮忙但工具做不到”：比如你只支持 4 个城市，它却硬要替你查东京。把“不支持什么、什么时候别用”写清楚，它才知道该拒绝而不是硬调。">
+          <span class="tag">B</span><span>把"不支持什么、什么时候别用"的负例写清楚</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="越长越可能稀释关键信息；长度不是质量。">
+          <span class="tag">C</span><span>写得越长越好，事无巨细</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="模型看不到函数，description 里塞代码意义有限，还占 token。">
+          <span class="tag">D</span><span>在 description 里贴上函数实现代码</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">想从"传参"这一层堵死模型传支持范围之外的城市，最靠谱的做法是？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="多强调确实降低概率，但它只是“软引导”，拦不住模型某天想偷懒/想帮忙。">
+          <span class="tag">A</span><span>在 description 里把"别传东京"反复强调三遍</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。在 input_schema 的 city 上加 enum 限定取值集合，模型想传“东京”也发不出合法请求；enum 同时还是给模型看的“合法取值文档”。工程上再加最后一层：执行前你用白名单校验（见动手）。">
+          <span class="tag">B</span><span>在 input_schema 的 city 上加 enum: [北京, 上海, 巴黎, 纽约]</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="函数模型看不到，判断写得再好也只对你自己的代码生效。">
+          <span class="tag">C</span><span>把城市白名单写进 get_weather 函数体里</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="你控制不了用户怎么问，也不该让用户替你做 schema 该做的事。">
+          <span class="tag">D</span><span>在提问界面限制用户只能输入那四个城市</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">input_schema 说 city 是必填 string，而你的函数其实写成了 def get_weather(city=None)：合同与实现对不齐。最可能的后果是？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="模型只会照 schema 猜参数，从不会去读你的函数签名“适配”你。">
+          <span class="tag">A</span><span>没关系，模型会自动适配我的函数签名</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。模型永远“带上 city”（schema 说必填），你的函数却按“可能为 None”来写，两边语义错位；这类错不报 400，而是运行时才暴露（拿到 None、TypeError、或你为容错加的分支悄悄改变了行为）。schema = 你在模型侧签的合同，必须与实现同一份。">
+          <span class="tag">B</span><span>模型照 schema 传参、你按函数签名接单，两边对不上，运行时才悄悄崩/变行为</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="端点宽容不代表它帮你修合同；错误会更隐蔽，不是更少。">
+          <span class="tag">C</span><span>DeepSeek 端点会替我把参数修正后再执行</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="通常不会；请求层校验的是 schema 自身合法，不是 schema 和你的函数一致。所以这坑才隐蔽。">
+          <span class="tag">D</span><span>会立刻报 HTTP 400，我马上就能发现</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：让同一只"锅"换三张"说明书"（约 25 分钟）</h2>
+  <p>核心思想：<strong>函数一个字不改，只改 TOOLS 里的字，模型行为就会变。</strong>你亲手看一次，比我说一百句都管用。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境沿用第 1 课</span>
+    <p>不用新建环境：激活第 1 课那个 venv、保证终端能看到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code> 即可（忘了就翻第 1 课第 3 步）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 运行三镜头实验</span>
+    <p>文件已写好：<code>D:\agent学习\code\0002-tool-spec-lab.py</code>。在激活 venv 的终端里跑：</p>
+<pre>python code/0002-tool-spec-lab.py</pre>
+    <p>它问了同一个问题三遍——"帮我查一下东京现在的天气。"——但每遍给模型看的 get_weather 说明书不同：</p>
+<pre><span class="c"># 镜头 1 · 裸奔：description 没写支持范围，schema 也没约束</span>
+{<span class="s">"description"</span>: <span class="s">"查询天气。用户问天气时使用。"</span>,
+ <span class="s">"input_schema"</span>: {<span class="s">"properties"</span>: {<span class="s">"city"</span>: {<span class="s">"type"</span>: <span class="s">"string"</span>}}}}
+
+<span class="c"># 镜头 2 · 好 description：写明"仅支持哪几个 + 不支持时别调用"（负例）</span>
+{<span class="s">"description"</span>: <span class="s">"查询某城市的当前天气。仅支持：北京、上海、巴黎、纽约。</span>
+<span class="s">若用户问其它城市，本工具没有数据，不要调用，直接告诉用户暂不支持。返回形如：晴，18°C。"</span>}
+
+<span class="c"># 镜头 3 · schema 上锁：给 city 加 enum 取值集合</span>
+{<span class="s">"input_schema"</span>: {<span class="s">"properties"</span>: {<span class="s">"city"</span>: {<span class="s">"enum"</span>: [<span class="s">"北京"</span>, <span class="s">"上海"</span>, <span class="s">"巴黎"</span>, <span class="s">"纽约"</span>]}}}}</pre>
+    <p>你应该会看到类似结果（模型措辞会有出入，关键是<strong>行不行</strong>的区别）：</p>
+<pre>镜 1 · 裸奔
+  ✳ 模型想调用：get_weather({'city': '东京'})     <span class="c"># ← 它自信点了一个你做不出的菜</span>
+
+镜 2 · 好 description
+  ✍ 直接回答：抱歉，只支持北京/上海/巴黎/纽约，暂不支持东京。
+
+镜 3 · schema 上锁
+  ✍ 直接回答：（同样礼貌地拒绝，因为它"没法"把东京传出去）</pre>
+    <p>盯着镜 1 多看两秒——这就是本课最重要的一幕：<strong>模型根本不知道"东京"不在你的表里。</strong>
+    说明书没写范围，它就默认什么都能查。它甚至不会因此报错，它只会自信地点单，然后把"暂无数据"当成正常结果转述给你。</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">诚实提醒：镜 2 和镜 3 这次可能长得一样——这不是 enum 没用</span>
+    <p>
+      你用的 deepseek-v4-flash 相当守规矩：description 写到"仅支持这四个城市"，它镜 2 就学会了拒绝，
+      所以镜 2 和镜 3 的输出常常分不出高下。那 enum 是不是多余的？<strong>不是。</strong>区别在于两层：<br>
+      ① <strong>description 是"说服"模型</strong>——它守规矩时听话，可它是概率系统：今天守，明天换模型、换提示词、情绪化问题下可能就不守了。<br>
+      ② <strong>enum 是让模型在"传参通道"里根本发不出非法值</strong>——这是机械约束，不依赖它当天心情好不好。
+      对越界的想象，一半靠 description 的负例劝退，一半靠 schema 的锁拦死，双保险。<br>
+      还想要"绝对保证"？生产环境再加一道你自己的闸（见挑战 B），以及 Anthropic 上的 <code>strict: true</code>（让你的 DeepSeek 端点未必支持，此处不依赖它，知道有这么个开关即可）。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 10 分钟）· 把第 1 课的循环文件升级成"合格的工具"</span>
+    <p>回到你的 <code>code/0001-minimal-agent.py</code>（那个带 <code>get_weather</code> + <code>get_current_time</code> 的真循环）。给它做三处小手术，然后跑：</p>
+    <ol>
+      <li>给 <code>get_weather</code> 的 <code>description</code> 加"仅支持：北京、上海、巴黎、纽约"和一句负例"问其它城市时直接告知暂不支持，不要调用本工具"；</li>
+      <li>给它的 <code>input_schema.city</code> 加上 <code>"enum": ["北京", "上海", "巴黎", "纽约"]</code>；</li>
+      <li>问它：<code>"帮我查一下深圳现在天气怎么样？"</code></li>
+    </ol>
+    <p>观察并回答：加了边界之后，模型还会不会傻乎乎地调 <code>get_weather</code>？如果不调了，最终答案是谁"说"出来的？
+    这跟你第 1 课刚写完时（裸奔）问"巴黎"是同一个循环——变化只来自那几行说明书。</p>
+    <p class="fn">小坑预告：如果一次要问两个工具相关的事（如"现在几点？深圳天气呢？"），用<strong>一句话</strong>带上两个信息，而不要发两条连续的 user 消息。
+    你的 DeepSeek 端点宽容、能收两条连续 user；但真 Anthropic 强制 user/assistant 严格交替，两条连续 user 会报 400。写对厂商无关的代码，就从这里开始。</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 15 分钟）· 最后一层硬约束：执行前先"验单"</span>
+    <p>模型是概率系统，终极防线不该押在它身上，而该押在<strong>你的执行代码</strong>上。给循环加一道闸：在执行工具前先校验参数，不合规就把它当成一次"工具报错"喂回去，而不是把垃圾当正常结果。把循环里执行工具那句（第 1 课代码的 <code>output = EXEC[block.name](**block.input)</code>）改成类似：</p>
+<pre><span class="k">if</span> block.name == <span class="s">"get_weather"</span> <span class="k">and</span> block.input.get(<span class="s">"city"</span>) <span class="k">not in</span> SUPPORTED:
+    output = <span class="s">f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"</span>
+<span class="k">else</span>:
+    output = EXEC[block.name](**block.input)</pre>
+    <p>然后删掉 description 里的负例、把 enum 也去掉（退回"裸奔"），再问一次"查一下东京天气"。
+    观察：这次即便模型又乱点东京，你的闸也会拦下它，让模型自己读出"错误：暂不支持东京"，最终老老实实告诉你支持哪几个城市。</p>
+    <p><strong>想一想再答我</strong>：同样是为了拦"东京"，把判断放在你这边，比起祈祷模型守规矩，强在哪？如果换一个更笨的模型来点单，哪一层还会兜底？（提示：把 description 的负例、schema 的 enum、你代码里的白名单，看成三道递减的防线。）</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"模型对一个工具的全部了解，只有 TOOLS 里的 ____ 三样。它看不到 ____。<br>
+    description 是____（软/硬）引导，写它时最容易被漏、却最值钱的是____；<br>
+    input_schema 是____（软/硬）约束，用 ____ 字段可以把取值框死；<br>
+    它必须和我的 ____ 对齐，否则对不齐时最要命的是它____报错，而是____才崩。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 亲手看到：函数一字不改、只改说明书，模型行为就变（镜 1 乱点东京）</li>
+    <li>✅ 拿到"好说明书"配方：name + description 四问（含负例）+ schema 锁</li>
+    <li>✅ 建立三道防线心智：description 劝退 → schema 锁死 → 执行前校验兜底</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use">Tool use — Claude（Anthropic 官方文档）</a><br>
+    精读里面的 <strong>"Define tools" / tool schema 段落</strong>：看官方推荐的 tool 定义写法，对照你今天写的那份说明书。
+    特别留意它讲参数 schema 时对 <code>required</code>、取值约束的用词——你在面试时能说出"工具 schema 是模型与执行代码之间的契约"这种话，就赢过大多数只会调框架的人。</p>
+    <p class="fn">厂商对照（求职加分，知道映射即可）：你用的这套 name/description/input_schema，在 OpenAI 那边叫 <code>tools</code> 里的 <code>function.name / function.description / function.parameters</code>，parameters 同样是 JSON Schema。概念一一对应，只有命名不同（资源清单 RESOURCES.md 里的 OpenAI 指南可对照）。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把你观察到的输出发我，我点评你练到了哪一层。也欢迎带着这些问题回来：
+    为什么 schema 里要开 <code>additionalProperties: false</code>？一个工具应该拆成几个？什么时候该把"要不要调"的决策写进 system prompt 而不是 description？——都是好面试题，我随时展开。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M2 · 结构化输出：让模型吐出的 JSON 一次就能解析（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 2 课 · Agent 开发冲刺课 · 完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
