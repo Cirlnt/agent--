@@ -1,0 +1,104 @@
+# KNOWLEDGE — 课程知识总表（随课程滚动积累）
+
+> 用途：复习与面试冲刺。**每完成一课**，把该课"可带走的知识"浓缩成一节追加到本文件。
+> 每课固定按六类分类（新课程照抄模板）：
+> ① 一句话核心 ｜ ② 心智模型 ｜ ③ 要点清单（逐条能自测）｜ ④ 实测发现 ｜ ⑤ 工程陷阱与面试追问 ｜ ⑥ 术语·厂商对照·原典
+> 原则：只收"讲得清、能自测"的硬知识；概念用中文，英文术语保留原词（行业通用语）。
+
+---
+
+## 第 1 课 · Agent 的最小闭环（agentic loop）· M1
+
+### ① 一句话核心
+Agent = **一个在循环里自主决定调用工具干活的大模型**（Anthropic：*an LLM using tools to perform a task in a loop*）。它比一次 API 调用只多三样东西：**工具清单、可续历史、循环**。
+
+### ② 心智模型
+- 一次 LLM 调用 = **无状态函数**：文本进、文本出；没有记忆、不会主动、不能动手。
+- **Agentic loop**（必须能默画）：
+  ```
+  发消息(历史 + 工具清单) → 模型返回?
+     tool_use → 你执行它点名的工具
+              → 把 tool_result(带 tool_use_id) 喂回 → 再来一轮
+     end_turn → 纯文字 = 最终答案 → 输出、停
+  ```
+- ReAct = Agentic loop 的思想名（Reason→Act→Observation）；loop 是它的**工程实现**。面试能主动说出这层关系很加分。
+
+### ③ 要点清单
+- [ ] Agent 的判据：模型**在循环里自主决定**调哪个工具（调强模型、提示词细、能存多轮，都不是判据）。
+- [ ] **谁执行工具**：模型从不执行。它只返回 `tool_use`"点单"（工具名 + 参数）；真正跑的是你注册的 Python 函数 `EXEC[name](**block.input)`。← 本课纠正过的最大误区
+- [ ] 模型职责只有两件：**决策**（调不调 / 调哪个 / 传什么参）+ **生成最终文字**。
+- [ ] 闭环三要素：`tool_result` 放 **user 角色**消息里；`tool_use_id` 必须对上模型给的 `block.id`；漏一个循环就断。
+- [ ] **并行工具**：一次 `response.content` 可含多个 `tool_use` 块，循环遍历执行 = 一次请求省多轮往返。
+- [ ] Workflow vs Agent（Anthropic 建议）：Workflow = 路径代码写死、LLM 只填空；Agent = 路径模型自己定。**能用简单方案就别上 Agent**（复杂度的代价：延迟、token、难调试）。
+
+### ④ 实测发现（DeepSeek v4-flash / Anthropic 兼容端点）
+- 单条 assistant 消息内会**并行**请求多个工具 → 遍历 content 的循环天然支持并行。
+- 端点宽容、能收两条连续 user 消息；但**真 Anthropic 强制 user/assistant 严格交替**，两条连续 user 会 400 → 想写厂商无关代码，就把多个需求塞进**一条消息**。
+
+### ⑤ 工程陷阱与面试追问
+- 面试题「什么是 Agent？和一次 API 调用什么区别？」→ 答：循环里的 LLM + 工具，路径由模型自己定。
+- 面试题「工具的副作用谁执行？」→ 调用方代码。**安全边界就在这里**：别把"能执行任意代码"的权力交到模型手里。
+- 手写这个循环，就是 OpenAI Agents SDK / Claude Agent SDK 内部帮你封装的东西 → 先手写、再拥抱框架，顺序别反。
+
+### ⑥ 术语·厂商对照·原典
+- 术语：LLM call / Agent / agentic loop / ReAct / tool_use / tool_result / end_turn / stop_reason / parallel tool calls（查 reference/glossary-core-terms.html）
+- 原典（必读）：Anthropic《Building Effective Agents》——精读 **Workflows vs. Agents** + 五个模式的名字。
+
+---
+
+## 第 2 课 · 工具的说明书：description 与 input_schema · M2
+
+### ① 一句话核心
+模型对一个工具的**全部了解**，只在 TOOLS 里那一个字典的三个字段：**name + description + input_schema**；函数体、docstring、注释它一个字都看不到。让它"调得准、传得对"，靠雕说明书，不靠换更聪明的模型。
+
+### ② 心智模型
+- **三个字段，三种力道**：
+  - `name` —— 让模型认出"该调它"。命名用"动词+名词"（`get_weather` / `send_email`）；别叫 `handle_info` 这种谁都能是它的名字。
+  - `description` —— **软引导**：让模型"倾向"做对，可它是概率系统，今天守、明天换模型/换提示词可能就不守。
+  - `input_schema` —— **强约束**：`type` / `required` / `enum` 把"模型能传什么"框死。
+- 核心立场：**能靠 schema 锁死的，就别靠 description 劝说** —— 靠契约，不靠祈祷。
+- **description 四问**（写任何工具前逐条过）：① 什么时候该用它？② 它返回什么（给样例）？③ 边界是什么（**负例**！）④ 什么时候不该用它？—— 最易漏、却最值钱的是**负例**：不支持什么 + 何时别调用。
+- schema = 模型与执行代码之间的**合同**：`input_schema` 说 `city` 必填 string，你的 `def` 就得真能接一个非 None 的 string。
+- **三道防线**（力道递减的兜底层）：
+  | 防线 | 所在层 | 性质 | 兜住什么 |
+  |---|---|---|---|
+  | ① description 负例 | 提示层 | 软·概率 | 模型"愿不愿意"越界 |
+  | ② input_schema（enum 等） | 传参层 | 中硬·强先验 | 越界值"发不发的出" |
+  | ③ 执行前白名单校验 | 你的代码 | 硬·物理拦截 | 非法值"到不到得了函数" |
+
+### ③ 要点清单
+- [ ] 模型看不到：函数体、docstring、注释、仓库源码、前端 UI → 参数语义只能靠 `input_schema.properties` 里参数的 description 传进去（很多人只写工具级 description，漏掉参数级）。
+- [ ] 好 description 负例样板：`"仅支持：北京、上海、巴黎、纽约。若用户问其它城市，本工具没有数据，不要调用，直接告诉用户暂不支持。返回形如：晴，18°C。"`
+- [ ] 合同对不齐的最隐蔽错法：**不报 400，运行时才 TypeError / 静默变行为**（schema 说必填、函数却 `city=None` 容忍 None → 悄悄崩）。
+- [ ] 白名单闸门模式（执行前验单，不合规当"工具报错"喂回，让模型自己读边界）：
+  ```python
+  SUPPORTED = list(table)          # 单一事实来源：真相当真值只写一处
+  if block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
+      output = f"错误：暂不支持城市 {city}。支持：{'、'.join(SUPPORTED)}"   # 喂人话，别喂 Python list 字面量
+  else:
+      output = EXEC[block.name](**block.input)
+  ```
+- [ ] **谁在说话，随说明书变**（实证）：裸奔说明书下，拒绝来自你闸门的报错文字；守规矩说明书下，拒绝是**模型自己写**的文字。模型的信息源 = TOOLS 三样 + 你喂回的 tool_result。
+
+### ④ 实测发现（DeepSeek v4-flash）
+- flash **相当守规矩**：description 写明"仅支持四城"，镜 2 就学会拒绝；镜 2（好 description）与镜 3（enum）输出肉眼难分高下。
+- 结论：决定性的对比在 **镜 1（裸奔，自信乱点东京）vs 镜 2（知情，礼貌拒绝）**；enum 的价值不在"今天这模型会不会乱来"，而在**换模型 / 回归测试时的保险 + 充当合法取值文档**。
+- 未验证项：Anthropic `strict:true` 在 DeepSeek 兼容端点是否可用——课程只当"有这么个开关"提及，不依赖。
+
+### ⑤ 工程陷阱与面试追问（含复盘补刀）
+- 面试题「怎么保证模型稳定调对工具、传对参数？」→ 老手答三层：**雕 description（含负例）→ schema 锁 → 执行前自己校验**，而不是"换个更聪明的模型"。
+- **enum 不是 100% 机械锁，是"强先验"**：Anthropic 端点在 tool_use 参数到达时**不替你拒非法值**；真机械锁 = OpenAI `strict:true`（服务端强校验）或你自己 parse 层再验。三层排序严格讲：description(纯劝) < enum(强先验) < 白名单(物理拦截)。
+- **三层共同盲区：域内就近偷换**。笨模型问东京、enum 里没东京，它最省力的错法是偷填一个合法的"北京" → description 与白名单全部放行（北京合法）→ 返回北京天气当东京答案。错法从"非法值"漂移成"合法值里的语义错"后，机械层全失效；对"对错"的防守只剩 description 的"没有就直说、别就近猜"负例（仍是软）+ eval 盯着。这也是 enum 常配 `unknown/other` 兜底值的原因。
+  - 自检一句话：**"白名单 100% 兜住域外；域内（类型合法但选错）没有哪一层能 100% 兜住。"**（答"类型一样却出错"就是点到了这个域内语义错。）
+- schema 与函数里**两份手写真相会漂移** → 单一事实来源（`SUPPORTED = list(table)`，别两处手抄四个城市）。
+- 工具输出是模型直接读的：报错/返回串要格式化成人话，别把 `['北京', '上海', …]` 这种 Python 字面量喂进去。
+- 预留钩子（下几课 / 面试可问）：为什么要开 `additionalProperties: false`？一个工具该拆成几个？"要不要调工具"的决策该写进 system prompt 还是 description？
+
+### ⑥ 术语·厂商对照·原典
+- 术语：tool spec / description / input_schema / JSON Schema / enum / required / 负例（negative example）/ 三道防线 / strict
+- 厂商对照：Anthropic `name / description / input_schema` == OpenAI `tools[].function` 的 `name / description / parameters`（parameters 同为 JSON Schema，概念一一对应，仅命名不同）。
+- 原典（必读）：Claude 官方 **Tool use** 文档（platform.claude.com → Agents and tools / Tool use），精读 "Define tools / tool schema" 段落。
+
+---
+
+*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅。完成新课请按顶部模板追加一节。*

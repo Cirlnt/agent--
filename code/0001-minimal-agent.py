@@ -16,6 +16,8 @@ MODEL = "deepseek-v4-flash"
 
 client = anthropic.Anthropic()   # 自动读 ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN
 
+SUPPORTED = ["北京", "上海", "巴黎", "纽约"]
+
 # --- 1) 工具的真实执行代码：在你这里，不在模型那里 ---
 def get_weather(city: str) -> str:
     """查询某城市当前天气（教学用假数据，真实场景换成调天气 API）"""
@@ -35,7 +37,8 @@ TOOLS = [{
     "input_schema": {
         "type": "object",
         "properties": {"city": {"type": "string",
-                                "description": "城市名，如：北京"}},
+                                "description": "城市名，如：北京"
+                                }},
         "required": ["city"],
     },
 },{
@@ -49,7 +52,7 @@ TOOLS = [{
 EXEC = {"get_weather": get_weather, "get_current_time": get_current_time}   # 名字 -> 真实函数
 
 # --- 3) 对话历史从这里开始 ---
-messages = [{"role": "user", "content": "现在北京时间几点？帮我查一下巴黎现在的天气怎么样？"}]
+messages = [{"role": "user", "content": "现在北京时间几点？帮我查一下巴黎现在的天气怎么样？帮我查一下深圳现在天气怎么样？"}]
 
 # --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---
 while True:
@@ -64,7 +67,11 @@ while True:
         for block in response.content:
             if block.type == "tool_use":
                 print(f"[工具请求] 模型想调用: {block.name}({block.input})")
-                output = EXEC[block.name](**block.input)   # <- 真正执行的是你
+                if block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
+                    output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
+                else:
+                    output = EXEC[block.name](**block.input)
+                # output = EXEC[block.name](**block.input)   # <- 真正执行的是你
                 results.append({"type": "tool_result",
                                 "tool_use_id": block.id,   # id 必须对上
                                 "content": output})
