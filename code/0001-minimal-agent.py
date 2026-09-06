@@ -49,10 +49,25 @@ TOOLS = [{
         "properties": {}}
 }]
 
+TOOLS.append({
+    "name": "report_weather",
+    "description": "★最终出口★ 已经查到天气、准备答复用户时，必须调用本工具把最终结果"
+                    "以结构化字段提交；提交后不要再输出任何自然语言总结。",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "city":      {"type": "string"},
+            "condition": {"type": "string",
+                             "description": "从 get_weather 拿到的天气串，形如：多云，23°C"},
+        },
+        "required": ["city", "condition"],
+    },
+})
+
 EXEC = {"get_weather": get_weather, "get_current_time": get_current_time}   # 名字 -> 真实函数
 
 # --- 3) 对话历史从这里开始 ---
-messages = [{"role": "user", "content": "现在北京时间几点？帮我查一下巴黎现在的天气怎么样？帮我查一下深圳现在天气怎么样？"}]
+messages = [{"role": "user", "content": "帮我查一下上海现在的天气"}]
 
 # --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---
 while True:
@@ -64,19 +79,27 @@ while True:
     if response.stop_reason == "tool_use":
         messages.append({"role": "assistant", "content": response.content})
         results = []
+        exit_payload = None
         for block in response.content:
-            if block.type == "tool_use":
-                print(f"[工具请求] 模型想调用: {block.name}({block.input})")
-                if block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
-                    output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
-                else:
-                    output = EXEC[block.name](**block.input)
-                # output = EXEC[block.name](**block.input)   # <- 真正执行的是你
-                results.append({"type": "tool_result",
-                                "tool_use_id": block.id,   # id 必须对上
-                                "content": output})
-        messages.append({"role": "user", "content": results})
-        continue
+            if block.type != "tool_use":
+                continue
+            print(f"[工具请求] 模型想调用: {block.name}({block.input})")
+            if block.name == "report_weather":
+                exit_payload = block.input     # 出口工具：数据在参数里，不执行、也不回塞
+                continue
+            if block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
+                output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
+            else:
+                output = EXEC[block.name](**block.input)
+            results.append({"type": "tool_result",
+                        "tool_use_id": block.id,   # id 必须对上
+                        "content": output})
+        if exit_payload is not None:
+            print("✅ 结构化最终输出：", exit_payload)
+            break   # 已拿到结构化出口数据，结束循环
+        else:
+            messages.append({"role": "user", "content": results})
+            continue
 
     # 情况二：模型给最终文字答案 -> 输出并结束
     if response.stop_reason == "end_turn":
