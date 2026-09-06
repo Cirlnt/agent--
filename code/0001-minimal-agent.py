@@ -81,22 +81,21 @@ while True:
         results = []
         exit_payload = None
         for block in response.content:
-            if block.type != "tool_use":
-                continue
-            print(f"[工具请求] 模型想调用: {block.name}({block.input})")
-            if block.name == "report_weather":
-                exit_payload = block.input     # 出口工具：数据在参数里，不执行、也不回塞
-                continue
-            if block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
-                output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
-            else:
-                output = EXEC[block.name](**block.input)
-            results.append({"type": "tool_result",
-                        "tool_use_id": block.id,   # id 必须对上
-                        "content": output})
+            if block.type == "tool_use":
+                print(f"[工具请求] 模型想调用: {block.name}({block.input})")
+                if block.name == "report_weather":
+                    exit_payload = block.input     # 出口工具：数据在参数里，不用"执行"它
+                    continue
+                elif block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
+                    output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
+                else:
+                    output = EXEC[block.name](**block.input)
+                results.append({"type": "tool_result",
+                            "tool_use_id": block.id,   # id 必须对上
+                            "content": output})
         if exit_payload is not None:
             print("✅ 结构化最终输出：", exit_payload)
-            break   # 已拿到结构化出口数据，结束循环
+            break   # 继续循环，模型会看到 report_weather 的结果，然后结束
         else:
             messages.append({"role": "user", "content": results})
             continue
