@@ -36,7 +36,7 @@
     <div class="stat"><div class="k">使命</div><div class="v"><a href="MISSION.md">MISSION.md</a></div></div>
     <div class="stat"><div class="k">资源库</div><div class="v"><a href="RESOURCES.md">RESOURCES.md</a></div></div>
     <div class="stat"><div class="k">术语表</div><div class="v"><a href="reference/glossary-core-terms.html">glossary-core-terms.html</a></div></div>
-    <div class="stat"><div class="k">进度</div><div class="v">第 5 课 <small>（M2 · 流式输出）</small></div></div>
+    <div class="stat"><div class="k">进度</div><div class="v">第 6 课 <small>（M2 · 成本与 token · 收官）</small></div></div>
   </div>
 
   <div class="module">
@@ -77,17 +77,25 @@
       <span class="t">动手文件</span>
       <span class="d">code/0004-prompt-engineering-lab.py 已就绪（三镜：裸奔 / system 顶层定位 / desc 摊边界）+ 挑战 A/B（给第 1 课循环装顶层章程 + 复现珠峰漏拦）</span>
     </a>
-    <a class="card now" href="lessons/0005-streaming.html">
+    <a class="card" href="lessons/0005-streaming.html">
       <span class="t">第 5 课 · 字是一个个蹦出来的：把 Agent 切成流式输出</span>
       <span class="d">非流式=整段等 vs 流式=逐字蹦（TTFT 首字时间）→ 六种事件 + 三种 delta → 工具参数半个半个到（省不掉工具那拍）→ 高级助手 text_stream / get_final_message 让 loop 一行不改</span>
     </a>
-    <a class="card now" href="lessons/0005-streaming.html#hands-on">
+    <a class="card" href="lessons/0005-streaming.html#hands-on">
       <span class="t">动手文件</span>
       <span class="d">code/0005-streaming-lab.py 已就绪（四镜：干等vs蹦字 / 裸流看事件 / 工具参数碎片 / streaming 开关对照）+ 挑战 A/B（手术刀切 0001 成流式 + max_tokens 蹦一半就断）</span>
     </a>
+    <a class="card now" href="lessons/0006-cost-tokens.html">
+      <span class="t">第 6 课 · 越聊越贵：把每次调用算成账（成本与 token）· M2 收官</span>
+      <span class="d">一次调用拆成 input/output 分开计价（输出更贵）→ 多轮=每轮重读全部历史（越聊越贵 445→553→667 实测）→ max_tokens 是输出账单封顶不是省钱开关（thinking 共享预算）→ 自动缓存省重复读单价 + 月账单量级估算</span>
+    </a>
+    <a class="card now" href="lessons/0006-cost-tokens.html#hands-on">
+      <span class="t">动手文件</span>
+      <span class="d">code/0006-cost-lab.py 已就绪（四镜：读 usage / 越聊越贵 decisive / max_tokens 封顶 / 成本换算）+ 挑战 A/B（给 0001 装账单仪表盘 + 换高峰价重算）</span>
+    </a>
   </div>
 
-  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。此页会随课程增长自动扩展。</p>
+  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。M2 工程地基六块已收官，下一模块 M3 见路线。此页会随课程增长自动扩展。</p>
 </div>
 </body>
 </html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 6 课 · 把每次调用算成账：成本与 token</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 6 课 · 模块 M2 · 工程地基 · <strong>收官</strong></div>
+  <h1 class="lesson-title">越聊越贵：把每次调用算成账<br>（成本与 token）</h1>
+  <p class="lesson-sub">前五课你一直在"调模型"，却从没问过一句：<strong>这一轮对话到底花了多少钱？</strong>今天把 Agent 的账本翻开——读 usage、分开 input/output 计价、用 max_tokens 封顶最坏账单、把每轮不变的前缀交给缓存。你会亲手量出那句面试必问的答案：<strong>为什么 Agent 越聊越贵？</strong></p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 60–80 分钟</span>
+    <span class="chip">需要：第 5 课跑通的环境（venv + 环境变量）</span>
+    <span class="chip">花费：几分钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官考工程化，有句几乎必问的开场：<em>"你的 Agent 上线后，每个用户一聊就是几十轮，一个月下来烧多少钱？你凭什么保证不破产？"</em>
+    新手答"我用的模型很便宜"；老手会先纠正提问里的一个错觉——<strong>Agent 烧钱的大头常常不是"模型贵"，而是"越聊越贵"</strong>：
+    模型是<strong>无状态函数</strong>，它不记得上一个请求，所以你每一轮都得把<strong>全部历史 + system + 工具说明书</strong>重新发一遍。
+    对话越长，每一轮要付的 input 就越多。本课的实验，就是把这条曲线<strong>亲手量出来</strong>。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：一次调用是一笔"拆得开"的账</h2>
+
+  <h3>账单的最小单位：input + output，分开计价</h3>
+  <p>
+    你每发一次 API 请求，返回的 <code>response.usage</code> 就是你这一笔的明细。它至少告诉你两个数：
+  </p>
+<pre>
+usage.input_tokens    # 输入 token 数：system + 工具说明书 + 你发的整段 messages
+usage.output_tokens   # 输出 token 数：模型吐出来的（含 thinking、含正文）
+（缓存命中时还会有 cache_read_input_tokens / cache_creation_input_tokens，见第 4 条）</pre>
+  <p>
+    定价是<strong>按 token 数 × 单价</strong>，而且 <strong>input 和 output 分开计价，output 通常比 input 贵很多</strong>。
+    拿你实际付费的 DeepSeek v4-flash 低谷价（2026-08-17 峰谷定价后，周日全天低谷）举例：
+  </p>
+<pre>
+                 输入(缓存未命中)   输入(缓存命中)    输出
+deepseek-v4-flash   ¥1.5 /百万       ¥0.05 /百万     ¥4.5 /百万   ← 输出是输入的 3 倍
+deepseek-v4-pro     ¥4.5 /百万       ¥0.15 /百万     ¥13.5 /百万  ← 更强模型更贵，但"结构"一样</pre>
+  <p class="fn">价格会变、按官方当日为准；这里只练"怎么算"。记住结构规律就够面试用：<strong>输出比输入贵、缓存命中比未命中便宜、强模型比弱模型贵</strong>——每一家都长这样。</p>
+
+  <h3>最大的坑：每一轮，模型都把整段历史从头重读一遍</h3>
+  <p>
+    单轮问答很便宜，因为输入就是"一条问题 + 一点上下文"。可你的 Agent 是<strong>循环</strong>：每一轮都要把
+    <code>messages</code> 里<strong>从第一条到最新一条的全部内容</strong>重新发给模型。模型没有任何记忆捷径——
+    它每次都是"白纸一张 + 你把整份档案拍在它面前"。
+  </p>
+<pre>
+第 1 轮模型调用：读  [system+工具] + [问题1]                          ≈ 445 tokens
+第 1 轮模型再调：读  [全部上面] + [你调 get_weather 的记录+结果]         ≈ 526 tokens   ← 连工具往返都重读
+第 2 问模型调用：读  [第 1 问全部] + [问题2]                            ≈ 553 tokens
+第 3 问模型调用：读  [第 1、2 问全部] + [问题3]                         ≈ 667 tokens
+（数字是本课镜 2 的一次真实运行——完整历史 445 → 553 → 667，每问 +100 左右，只涨不跌）</pre>
+  <p>
+    于是"越聊越贵"不是比喻，是<strong>无状态函数的宿命</strong>：对话越长，每一轮模型要读的东西越多。
+    第 3 问那一轮，模型读的是 <strong>前两问的全部内容</strong>，而不是"第 3 问"这一句。
+  </p>
+
+  <div class="callout info">
+    <span class="t">一句话记忆</span>
+    <p><strong>模型不记得你，所以你每轮都要把整段历史重讲一遍——这就是 Agent 独有的成本曲线。</strong>
+    同样是烧钱，单轮问答是"按次算"，Agent 是"按对话长度 × 轮次"算：聊得越长，每一轮都越贵。</p>
+  </div>
+
+  <h3>两个"防误读"：max_tokens 与缓存，都别当万能药</h3>
+  <p>
+    有人一听成本就去调 <code>max_tokens</code>。它是<strong>单次输出账单的天花板</strong>（最坏烧多少 output 的封顶），
+    但有两件事它管不着：<strong>① input 那一头照旧全算</strong>（历史重读一分不少）；<strong>② thinking 与正文共享这个预算</strong>——
+    第 3/5 课埋过：预算给太小，thinking 先吃光，你<strong>为那些输出 token 付了钱，却一个字都没见到</strong>（镜 3 实锤：max_tokens=32 时可见正文是 0 个字）。
+  </p>
+  <p>
+    缓存呢？它确实能把成本砍一大截——原理是：把<strong>每轮都不变的前缀</strong>（system + 工具说明书 + 长指令）存起来，
+    下一轮命中了就按超便宜的"缓存命中价"算，而不是全价。但请看清它砍的是哪一段：
+    <strong>缓存砍的是"重复读的单价"，砍不掉"每一轮都在读一遍"这件事本身</strong>——新增的对话（缓存未命中部分）永远全价。
+  </p>
+
+  <div class="callout info">
+    <span class="t">本课一句话核心（请记到能默写）</span>
+    <p><strong>Agent 烧钱 = 输出单价高 + 每一轮重读全部历史。</strong>
+    把一次调用拆成 input / output 分开计价，用 <code>max_tokens</code> 封顶最坏输出，让每轮不变的前缀命中缓存降低重复读的单价——
+    再把每一轮读 usage 记账，你才算真的"把 Agent 算成账"。面试答成本，先答"多轮重读历史"这一层，再答缓存，就比只背价格表高一档。</p>
+  </div>
+
+  <div class="callout danger">
+    <span class="t">诚实提醒（教师实测，必读）：本课数字是"量级感"，不是报价</span>
+    <p>
+      ① <strong>价格以官方当日为准</strong>：本课全部金额用 deepseek-v4-flash 低谷价（今天周日）练公式；DeepSeek 2026-08 刚峰谷调价且还在变动，别把本课金额当合同。
+      ② <strong>自动缓存命中是"尽力而为"</strong>：同一前缀第一次出现时 cache_read 为 0（还没跑热），第二次起才可能命中。别把某一次 cache_read=0 当成"这个端点不支持缓存"。
+      ③ <strong>镜 2 / 镜 4 的 token 数与金额</strong>是一次真实运行的抽样，模型每次回答略不同，数字会小幅波动——看"趋势与量级"，别抠个位数。
+      ④ 想彻底严谨，官方计数请查原典里 Anthropic 的 <strong>Token counting</strong> 文档（本课只用 <code>usage</code> 与 <code>count_tokens</code> 两样官方接口量"真实读了多少"）。
+    </p>
+  </div>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">同一个 Agent 在同一个对话里答第 3 个问题时，一次模型调用要发出的完整 prompt（input token）比答第 1 个问题时——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="方向反了。模型是无状态函数，每轮都把【全部历史】重发一遍；对话越长，每轮要读的越多，第 3 问读的是前两问的全部，不会比第 1 问更小。">
+          <span class="tag">A</span><span>越来越小（模型会记住前面的，不用重发）</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="如果模型自带记忆、每轮只发增量，你就不用自己维护 messages 历史了——现实恰恰相反，历史是你存着、每轮整段重发的。">
+          <span class="tag">B</span><span>基本不变（每轮只发"新说的话"那一点）</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。每一轮模型调用都把整段 messages（含 system + 工具说明书）从头重读一遍，没有捷径。第 3 问时历史里已有前两问的全部往返，input 只涨不跌（镜 2 实测 445 → 553 → 667）。这就是「越聊越贵」。">
+          <span class="tag">C</span><span>越来越大（每轮重读全部历史，历史越攒越长）</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="thinking 决定的是 output 预算的分配，不是 input 的大小；input 里只有你发过去的 messages/system/tools，没有模型的 thinking。">
+          <span class="tag">D</span><span>取决于这轮 thinking 想多久</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">你看到一次调用返回 usage：input_tokens=100、cache_read_input_tokens=900、output_tokens=200。对这次调用最准确的理解是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="input_tokens 在 Anthropic 口径里只算「未命中缓存、按全价计的新增部分」；真正的完整 prompt 是 100+900=1000。把 100 当全部就漏了 900。">
+          <span class="tag">A</span><span>这次只读了 100 个输入 token，很省</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="恰恰相反，900 说明前缀命中了缓存、按便宜价算；若它没被缓存，这 900 要按全价 input（flash 1.5/M）付，贵 30 倍。cache_read 是帮你省钱的信号。">
+          <span class="tag">B</span><span>cache_read=900 是最坏情况，说明我该担心</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="模型每轮都把完整历史重读一遍，usage 报告的是「读了多少」，不会因为命中了缓存就少读内容。缓存改变的是「按什么单价付」，不是「模型看了多少」。">
+          <span class="tag">C</span><span>模型这轮只认真看了 100，其余 900 是偷懒没读</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。模型实际读的完整 prompt = input_tokens + cache_read_input_tokens = 100 + 900 = 1000。计费时：新增的 100 按全价 input 算，命中的 900 按超便宜的缓存命中价算（DeepSeek flash 低谷 0.05/M ≈ 全价的 1/30）。读 usage 要把这两项加回来看「模型到底读了多少」"></button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">镜 3 实测：同一句"写 300 字散文"，max_tokens=32 时返回 usage.out=32、stop_reason=max_tokens，但可见正文是 0 个字。最可能的原因是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="恰恰相反——你为这 32 个 output token 付了钱（它们确实计费了），只是没变成你能看到的字。不是「没计费就返回了」。">
+          <span class="tag">A</span><span>输出太短没到 32，于是没收费就返回了</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。thinking 与正文共享 max_tokens 这个预算（第 3/5 课埋过）；预算只有 32，被 thinking 先吃光了，正文一个字都没轮到就被 stop_reason=max_tokens 截断。你为那 32 个输出 token 付了钱，却 0 个字可见——max_tokens 给太小 = 白付钱 + 被截断。">
+          <span class="tag">B</span><span>thinking 把 32 的预算吃光了，正文还没开始就被截断</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="工具调用确实不走这段文本预算，但本题根本没调工具（是写散文）。工具调用救不了「预算被 thinking 吃光」。">
+          <span class="tag">C</span><span>模型改走工具调用了，文字通道留空</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="input 与 output 是两本账：input 只跟你发过去的 messages 有关，跟你把 max_tokens 设成 32 还是 2048 无关（两次实测 input 都是 99）。题目里的 0 个字是 output 侧的截断问题。">
+          <span class="tag">D</span><span>max_tokens=32 让模型连 input 都不敢多读，所以什么都不输出</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">判断题："DeepSeek 会自动缓存重复前缀（免配置），所以只要用 DeepSeek，多轮对话的 input 成本就不再随对话变长而涨了。"——这句话对吗？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="方向反了：缓存恰好不「固定」成本——它只是把重复读的单价打骨折，但新增对话（未命中）永远全价，而新增的部分随对话变长只会更多。成本曲线照涨，只是斜率变缓。">
+          <span class="tag">A</span><span>对，缓存把成本固定住了</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="即便命中，缓存命中价也不是 0（flash 低谷也要 0.05/M）；而且真正的问题是「命中只覆盖重复前缀，不覆盖新增历史」。">
+          <span class="tag">B</span><span>对，缓存命中价是 0，所以命中部分全免费</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="错，这句话正是本课要拆的迷思。自动缓存只把「重复前缀」的单价从 1.5 打到 0.05/M（省约 97%），但① 新增的对话永远全价；② 越聊越长，新增的部分也越多。镜 2 里同场对话缓存后账单省了约 2/3，但 full 曲线照涨不误。想真正压增速，得靠「别让对话无限长」（截断/摘要历史），缓存不解决这个。">
+          <span class="tag">C</span><span>错。缓存只降重复读的单价，越聊越贵的新增部分与对话变长本身它都挡不住</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="反了：Claude 是显式 cache_control 才缓存；DeepSeek 才是自动缓存。而且「自动」只是免配置，不代表能消除增长。">
+          <span class="tag">D</span><span>对，只有显式写 cache_control 的 Claude 才这样，DeepSeek 做不到</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：四镜量成本 + 给 0001 装账单仪表盘（约 30 分钟）</h2>
+  <p>核心思想：<strong>用 usage 和 count_tokens 说话，别听我说教。</strong>四镜带你从"读懂一张账单"到"亲手量出越聊越贵的曲线"再到"换算成人民币"。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境沿用第 1 / 2 / 3 课</span>
+    <p>激活第 1 课那个 venv、让终端看得到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>（忘了就翻第 1 课第 3 步）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 跑四镜实验，全程一条命令</span>
+    <p>文件已写好：<code>D:\agent学习\code\0006-cost-lab.py</code>。跑它：</p>
+<pre>python code/0006-cost-lab.py</pre>
+    <p>四镜各盯一个东西：</p>
+<pre><span class="c"># 镜 1 · 读 usage：一次调用的账单长什么样</span>
+写一首诗（短输入长输出）→ in 和 out 谁大？带 system+工具的一次请求 → input 里装了多少东西？
+        盯：usage 有几个字段？cache_read 这次亮了没？（冷启动常是 0，跑热才亮——别当端点不支持）
+
+<span class="c"># 镜 2 · ★ 越聊越贵：同一 agent 连答 3 问，完整历史一路涨（本课 decisive）</span>
+完整 prompt 由 count_tokens 实测：445 → 553 → 667 只涨不跌；每轮模型调用都 ≈ 此刻完整历史。
+        盯：cache_read 是不是越滚越大（自动缓存吃掉重复前缀）？usage.in（新增）是不是一直很小？
+        结论：缓存把重复读打折了，但"每轮都在读越来越长的历史"这件事，任何端点都省不掉。
+
+<span class="c"># 镜 3 · max_tokens：单次输出账单的"封顶"，不是省钱工具</span>
+同一句写散文，max_tokens=32 vs 2048 → 32 那笔 stop=max_tokens、可见正文常常 0 个字（thinking 吃光预算）
+        盯：你为 32 个输出 token 付了钱却 0 字可见；2048 那笔才 end_turn、357 字。封顶 ≠ 省钱。
+
+<span class="c"># 镜 4 · 成本换算：把真实 token 套价格，估一个月烧多少</span>
+同一场 3 问对话：完全不缓存 ≈ 0.66 分，DeepSeek 自动缓存后 ≈ 0.22 分（省约 2/3）。
+放大到 100 用户 × 30 问/天 × 30 天：不缓存 ≈ 199 元/月，自动缓存 ≈ 66 元/月 —— 量级感，非报价。</pre>
+  </div>
+
+  <div class="callout danger">
+    <span class="t">陷阱①：只盯 usage.input_tokens 单独一个数</span>
+    <p>
+      在会做自动前缀缓存的端点（DeepSeek 系），<code>input_tokens</code> 报的是<strong>未命中缓存、按全价算的那部分</strong>；
+      命中缓存的重复前缀记在 <code>cache_read_input_tokens</code>。只看 <code>input_tokens</code> 会让你误以为"每轮没重读历史"，
+      得出"越聊并不越贵"的错误结论。<strong>要看"模型这轮到底读了多少"，把两项加起来</strong>（或直接用 <code>count_tokens(messages)</code> 量完整 prompt）。
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">陷阱②：以为 max_tokens 调小就是在省钱</span>
+    <p>
+      镜 3 是反例：调太小，thinking 先吃光预算，<strong>你为看不见的字付了钱还得到一次截断</strong>（stop_reason=max_tokens，
+      记得第 3/5 课的收尾检查）。max_tokens 的正确定位是"给最坏一笔输出封顶"，不是"日常省钱的旋钮"；
+      真正的 input 大头（历史重读）它一分都管不着。
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">陷阱③：把"缓存省了 2/3"当成"成本不会再涨"</span>
+    <p>
+      镜 4 里缓存让一场对话从 0.66 分变 0.22 分——但这是<strong>打了折扣的单价</strong>，不是<strong>停止的增长</strong>。
+      对话越长，新增（未命中、全价）的部分越多。想压"越聊越贵"的斜率，缓存帮不上，得靠第 4 把扳手：
+      <strong>别让对话无限长</strong>（长对话截断 / 摘要历史）。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 15 分钟）· 给 0001 装一个"账单仪表盘"</span>
+    <p>打开 <code>code/0001-minimal-agent.py</code>（第 5 课成品态：流式 + SYSTEM_SCOPED + 出口结构完好）。你要加的东西很小——<strong>只动 API 调用点附近 + 文件顶部加两个价格常量</strong>，不动 agent 逻辑：</p>
+    <ol>
+      <li>文件顶部（<code>MODEL</code> 附近）加两个常量（价格会变，以官方为准；用今天低谷价练手）：</li>
+    </ol>
+<pre>INPUT_PRICE_PER_M  = 1.5    # 元 / 百万 tokens：deepseek-v4-flash 低谷价（缓存未命中输入）
+OUTPUT_PRICE_PER_M = 4.5    # 元 / 百万 tokens：deepseek-v4-flash 低谷价（输出）</pre>
+    <ol start="2">
+      <li>在流式收 response 之后、<code>if response.stop_reason == ...</code> 之前，插一行"每次模型调用"的账单打印（<code>response.usage</code> 就在你手上）：</li>
+    </ol>
+<pre>u = response.usage
+print(f"\n[账单] 本轮 input={u.input_tokens} 命中缓存={u.cache_read_input_tokens or 0} "
+      f"output={u.output_tokens}  ≈ {u.input_tokens/1e6*INPUT_PRICE_PER_M + u.output_tokens/1e6*OUTPUT_PRICE_PER_M:.4f} 元")</pre>
+    <ol start="3">
+      <li>跑默认的"帮我查一下上海现在的天气"（一个问题通常要 2 次模型调用：先 get_weather、再 report_weather 收尾）。</li>
+    </ol>
+    <p><strong>观察并回答我：</strong>① 同一次"上海天气"里，第 2 次模型调用的 input 是不是比第 1 次大？② 多出来的那些 input token 是从哪来的？（提示：第 1 次调用之后，你往 messages 里塞了什么东西再发的第 2 次？）③ 关键一题：<strong>镜 2 说"越聊越贵"，但 0001 你只是答了"一个"问题就有两笔 input 在变大——把这两件事连起来说：一个问题的内部往返，和一个对话被拉长，为什么烧的是同一笔钱？</strong>用你改完的代码回答，别猜。</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 10 分钟）· 换一档价格重算，验证"公式与杠杆跟价格无关"</span>
+    <p>镜 4 的钱是低谷价算的。现在把 <code>code/0006-cost-lab.py</code> 顶部三个价格常量换成 <strong>高峰价</strong>（DeepSeek 2026-08-17 起工作日 9:00–12:00、14:00–18:00 翻倍）：</p>
+<pre>INPUT_PRICE_PER_M   = 3.0    # 高峰：缓存未命中输入
+OUTPUT_PRICE_PER_M  = 9.0    # 高峰：输出
+CACHE_HIT_PER_M     = 0.10   # 高峰：缓存命中输入</pre>
+    <p>重跑一遍 <code>python code/0006-cost-lab.py</code>，回答我：① 镜 4 的两个月账单（不缓存 / 自动缓存）从低谷的 ≈199 元 / ≈66 元 变成了多少？翻了几倍？② 换价格后，镜 2 那条"完整历史只涨不跌"的曲线变了吗？——这说明 <strong>价格换挡只改账本上的单价，不改变"每轮重读历史、对话越长越贵"这个结构</strong>。③ 不写代码想一步：上面四把扳手里，哪一把砍的是缓存也砍不掉的"对话变长"本身？（提示：不是缓存那一把。）</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>“一次调用返回 usage，最少告诉我两个数：____ 和 ____，它们____计价，通常____更贵。<br>
+    在会自动缓存前缀的端点上，模型每轮实际读到的完整 input = ____ + ____；只盯 input_tokens 会误以为____。<br>
+    Agent 越聊越贵，根因是模型是____函数、每轮都重读____；缓存只把重复前缀的____打折，砍不掉____这件事本身。<br>
+    max_tokens 是单次____的封顶，不是省钱开关；给太小，____会先吃光预算，让你____。<br>
+    想真正压「越聊越贵」的斜率，最有效的一把扳手是____。”</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 会读 <code>usage</code>：分清 input / output / cache_read，知道"模型每轮实际读了多少"要加起来看</li>
+    <li>✅ 能说出 Agent 独有的成本曲线：无状态函数 + 每轮重读全部历史 → 越聊越贵（镜 2 亲手量出 445→553→667）</li>
+    <li>✅ 知道 max_tokens 是"单次输出账单的封顶"、thinking 与正文共享预算（给太小=白付钱+截断）</li>
+    <li>✅ 会用 cost = in×单价 + out×单价 把真实 token 换成人民币，并能估算一个月量级 + 说出四把省钱的扳手</li>
+    <li>✅ M2 工程地基六块全部收官（工具说明书 / 结构化输出 / prompt 分工 / 流式 / 成本）</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://platform.claude.com/docs/en/build-with-claude/token-usage">Counting &amp; displaying token usage — Claude（Anthropic 官方文档）</a><br>
+    精读 <strong>usage 字段</strong>与 <strong>counting tokens</strong> 段落：本课 <code>input_tokens / output_tokens / cache_read_input_tokens</code>、<code>count_tokens</code> 全部来自这一页，能默画 usage 结构就是真懂。</p>
+    <p><a href="https://www.anthropic.com/pricing">Claude Pricing（官方定价页）</a> ｜ <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">Prompt caching（官方文档）</a><br>
+    Anthropic 侧：<code>cache_control: {"type":"ephemeral"}</code> 显式标缓存点；对照本课 DeepSeek 的"自动缓存"，看清同一概念在两家是"显式 vs 自动"两种开关。</p>
+    <p class="fn">延伸对照（学有余力再看）：DeepSeek 官方定价与自动上下文缓存说明（platform.deepseek.com → 文档；2026-08 起峰谷计价，周末全天低谷）；OpenAI 的 token 计费 / prompt caching 概念一一对应（usage 字段命名不同）。想深挖"上下文越长缓存命中价怎么算 / 长对话怎么自动摘要压缩历史"的同学，把问题记下来，是 M3（记忆与上下文）的钩子。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把三个观察答案发我，我点评你练到了哪一层。也欢迎带着这些问题回来：对话到多长该"截断 / 摘要 / 归档"才划算（M3 记忆与上下文的入口）？缓存命中率怎么在生产里监控？（M6 可观测性）</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M3 · 记忆与上下文——多轮状态、长上下文、向量库与 RAG 基础：Agent 不再"每轮白纸"，而是有记忆地做事（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 6 课 · Agent 开发冲刺课 · M2 收官。完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
