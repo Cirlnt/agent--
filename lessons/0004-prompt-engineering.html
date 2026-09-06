@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 4 课 · 话要放对抽屉：system prompt 与工具说明书的分工</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 4 课 · 模块 M2 · 工程地基</div>
+  <h1 class="lesson-title">话要放对抽屉：<br>system prompt 与工具说明书的分工</h1>
+  <p class="lesson-sub">前三课你都在给"单个工具"写说明书（TOOLS 里的三行字）。今天往后退一步看全局：模型每轮还会读一份叫 <code>system</code> 的"全局章程"。同一条规矩，写进 system 还是写进某个工具的 description，常常是"整台 Agent 要不要越界"的分水岭。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 60–80 分钟</span>
+    <span class="chip">需要：第 3 课跑通的环境（venv + 环境变量）</span>
+    <span class="chip">花费：几毛钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官考 prompt 工程，最常问的一句是：<em>"一条行为规则，你是写进 system prompt，还是写进工具的 description？"</em>
+    新手把能想到的话全堆进 system；老手心里有一张表：<strong>管"一个工具"的，去那个工具的 description / schema；管"整台 Agent、管工具之间取舍"的，才进 system。</strong>
+    但"管整台 Agent"听起来很抽象——本课的实验就让"分工错位"这件事<strong>看得见</strong>。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：模型每轮读四样东西，system 是唯一"整台 Agent"的抽屉</h2>
+
+  <h3>先升级第 2 课的一句话</h3>
+  <p>
+    第 2 课说"模型对一个工具的全部了解，只在 TOOLS 里那一个字典"。这句话要补上半句：
+    <strong>模型每轮真正"读"到的说明，其实有四样</strong>——
+  </p>
+<pre>
+① system prompt    ← 整台 Agent 的全局章程（你是谁 / 只做什么 / 总流程 / 红线）
+② 对话历史         ← 到目前为止 user / assistant / tool_result 在聊什么
+③ tools            ← 每个工具各自的 name + description + input_schema
+④ 你喂回的 tool_result ← 工具执行后的真实结果（第 1 课闭环的那一环）
+</pre>
+  <p>
+    system 和 tools 都是"说明"，差别在<strong>作用域</strong>：tools 里每一份说明书只属于它那一个工具；
+    system 属于<strong>整台 Agent</strong>，每轮、每个工具都处于它之下。
+  </p>
+
+  <h3>三个抽屉，各装什么</h3>
+  <ol class="steps">
+    <li>
+      <strong><code>system</code> —— 整台 Agent 的抽屉：</strong>身份、职责范围、整体边界、跨工具流程纪律。
+      例句：<em>"你是天气与时间专用助手；只做两类请求；无关请求直接拒绝，不要调任何工具。"</em>
+    </li>
+    <li>
+      <strong>工具 <code>description</code> —— 单工具的抽屉：</strong>这一个工具何时该用 / 何时不该用（负例）/ 返回长什么样。
+      例句：<em>"仅支持北京、上海、巴黎、纽约；用户问其它城市不要调用本工具。"</em>
+    </li>
+    <li>
+      <strong><code>input_schema</code> —— 参数合同：</strong>这一个工具的参数类型 / required / enum。
+      例句：<em>"city 必填 string，取值限于四个城市。"</em>
+    </li>
+  </ol>
+
+  <h3>分工判据（本课一句话核心，请记到能默写）</h3>
+  <div class="callout info">
+    <span class="t">一句话记忆</span>
+    <p><strong>这条规则只管"一个工具"→ 写进那个工具的 description / schema；</strong>
+    <strong>这条规则管"整台 Agent / 工具之间的取舍"→ 写进 system。</strong>
+    分不清时先问自己：删掉 system，这条规矩还在吗？如果"没地方可放"——那它本来就是 system 的活。</p>
+  </div>
+
+  <h3>一个反直觉的实锤（为什么 description 守不住"整台 Agent 的边界"）</h3>
+  <p>
+    description 只对<strong>"这个工具该不该被调"</strong>负责。于是它天然有一个盲区：
+    <strong>如果用户问的事根本不需要任何工具</strong>（比如一句纯知识问答"珠峰多高"，模型自己就知道答案），
+    那 description 层"别乱调我"的告诫<strong>根本不会触发</strong>——没有工具要被调，也就没有哪份 description 出来拦。
+    这种"零工具也能答的域外请求"，只有 system 里那句"这台 Agent 只做什么、其余不做"能拦下来。
+    这就是为什么本课要给你看三镜对比：同一组工具，规矩放 system 与摊进 description，行为差在哪。
+  </p>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">「你是一台只查天气和时间的专用助手，除此之外的事都直接拒绝」——这句应该写进哪里？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="get_weather 的 description 只管“这个工具该不该被调”；它没有资格、也没有立场代表整台 Agent 宣布“别的事我们都不做”。">
+          <span class="tag">A</span><span>写进 get_weather 的 description，因为它和天气最相关</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。分工判据：管“单个工具什么时候调 / 传什么”的进该工具 description；管“这台 Agent 是谁、整体边界、跨工具取舍”的进 system。身份与边界没有哪个单工具能代表，只能放 system。">
+          <span class="tag">B</span><span>写进 system prompt，因为它说的是"这台 Agent 是谁、只做什么"</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="report_weather 只是出口工具，管“查到天气后结构化收尾”。让它在 description 里替整台 Agent 立边界，等于让一个工具替所有工具说话。">
+          <span class="tag">C</span><span>写进 report_weather 的 description，反正出口工具最常被调用</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="user 消息是“这一轮的输入”，不是持久说明；第一句叮嘱完，第二轮就没人记得住这条规矩。身份与边界要每轮都在，只能放 system。">
+          <span class="tag">D</span><span>写在 user 消息开头，让用户第一句话就说清楚</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">实验里，镜 2（把"只做天气/时间"写进 system）和镜 3（不写 system、只把边界摊进每个工具 description），都面对"珠穆朗玛峰有多高"——一个不需要任何工具、模型凭知识就能答的问题。谁会拒绝？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="镜 3 里没有哪份 description 会说“别答珠峰”，因为没有工具要被调；它照答不误（实证：8848.86）。">
+          <span class="tag">A</span><span>两镜都会拒绝</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="镜 2 的 system 明说“知识问答超出职责”，它会拒绝——所以不是都答。">
+          <span class="tag">B</span><span>两镜都会直接作答</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对，这是本课实证的 decisive 一镜：镜 2 拒了（system 顶层边界说“知识问答超出职责”）；镜 3 照答 8848.86——因为零工具的域外请求，description 层根本看不见，没有工具要拦它。">
+          <span class="tag">C</span><span>镜 2 拒绝，镜 3 直接作答</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="顺序反了：有 system 顶层边界的镜 2 才会拒绝；只靠 description 的镜 3 拦不住零工具请求。">
+          <span class="tag">D</span><span>镜 2 直接作答，镜 3 拒绝</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">工具菜单里挂着一个"联网搜索"万能工具，却不给这台 Agent 写任何 system。你问它"今天比特币价格是多少"，它最可能怎么做？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="没人告诉过它是“天气助手”。没有顶层定位时，模型不会自己假定一个狭窄身份。">
+          <span class="tag">A</span><span>拒绝，因为天气助手不该查币价</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对，实证镜 1：它真的调了 search_web({query: 比特币价格 今日})。不立规矩 = 不给 Agent 身份，模型会默认自己是“通用助手”，见什么工具用什么——它扩张成工具允许它成为的样子。">
+          <span class="tag">B</span><span>调 search_web 去联网查最新价格</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="search_web 明明在工具清单里、能联网，它没有理由说自己没有工具。">
+          <span class="tag">C</span><span>报错说没有这个工具</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="模型不负责“装工具”；菜单里已有能用的 search_web，它直接用。">
+          <span class="tag">D</span><span>反问你要不要先装个查行情的工具</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">"先 get_weather 取回真实数据，最后才 report_weather 收尾；查时间就别套 report"——这条跨工具流程纪律，为什么放在 system 是结构上更正确的位置？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="不是长度或醒目度问题。system 不靠“字多”生效，靠的是作用域覆盖整台 Agent。">
+          <span class="tag">A</span><span>因为 system 字多，模型更看得见</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。它管的是“几个工具之间谁先谁后、哪个环节不许跳过”，作用域横跨整条循环——只有 system 覆盖全循环；只写进 report 的 description，那 get_weather 在跑、查时间在跑的那些回合，谁都不记得这条纪律。">
+          <span class="tag">B</span><span>因为它管多个工具、整条循环的先后，只有 system 的作用域覆盖整台 Agent</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="description 里什么都能写，不会语法报错；问题不在“能不能写”，在“写到那有没有用”。">
+          <span class="tag">C</span><span>因为规则写进 description 会报错</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="input_schema 只描述参数（类型/必填/取值），没法表达“先调谁再调谁”的时序。">
+          <span class="tag">D</span><span>因为 schema 结构里不能写字</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：同一个工具集，规矩放哪，Agent 就长成什么样（约 30 分钟）</h2>
+  <p>核心思想：<strong>看模型行为，别听我说教。</strong>同一组工具 + 同一批问句，只有"规矩放在 system 还是 description"在变，你看三镜的点单 / 开口 / 拒绝。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境沿用第 1 / 2 / 3 课</span>
+    <p>激活第 1 课那个 venv、让终端看得到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>（忘了就翻第 1 课第 3 步）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 跑三镜实验</span>
+    <p>文件已写好：<code>D:\agent学习\code\0004-prompt-engineering-lab.py</code>。跑它：</p>
+<pre>python code/0004-prompt-engineering-lab.py</pre>
+    <p>工具集是第 3 课的三件套（get_weather / get_current_time / report_weather）<strong>再加一颗雷</strong>：一个"联网搜索"通用工具。三镜唯一差别是规矩放哪：</p>
+<pre><span class="c"># 镜 1 · 裸奔：没有 system，search_web 是万能版</span>
+q_weather 上海天气   → get_weather 正常点单                     <span class="c">（对照组：域内谁都对）</span>
+q_btc     比特币价   → ✳ search_web({query: 比特币价格 今日})     <span class="c">← 它去联网搜了！</span>
+q_everest 珠峰多高   → 直接开口答 8848.86                        <span class="c">（通用助手，知识照答）</span>
+
+<span class="c"># 镜 2 · 同一工具集 + system 顶层定位"只做天气/时间"</span>
+q_weather 上海天气   → get_weather 正常点单
+q_btc     比特币价   → 拒绝："我只负责天气和时间"                  <span class="c">← system 边界生效</span>
+q_everest 珠峰多高   → 拒绝："知识问答超出职责范围"                <span class="c">← 零工具域外也拦住了</span>
+
+<span class="c"># 镜 3 · 不写 system，只把边界摊进各工具 description（search_web 收窄成企业内网）</span>
+q_weather 上海天气   → get_weather 正常点单
+q_btc     比特币价   → 拒绝："我没有查询比特币价格的功能"          <span class="c">（desc 自守起了作用：没工具适配）</span>
+q_everest 珠峰多高   → 直接开口答 8848.86                        <span class="c">← 漏了！desc 层看不见零工具请求</span>
+</pre>
+    <p>盯住 <strong>q_everest</strong> 那一列：镜 2 拒了、镜 3 答了——工具一模一样，只差"这台 Agent 的边界写没写进 system"。
+    镜 3 为什么守住了币价却漏了珠峰？因为币价"要调工具去查"，description 层能拦；珠峰"不需要任何工具"，没有哪个 description 会被触发去拦它。</p>
+  </div>
+
+  <div class="callout danger">
+    <span class="t">诚实提醒（教师实测，必读）：分工的价值不在"今天这模型放错会崩"，而在作用域</span>
+    <p>
+      备课我先跑过另一组小实验：只有天气 + 时间 + 出口工具、问句又都在域内时，<strong>deepseek-v4-flash 连 system 都不写也守得住顺序</strong>——先查后报、查时间不乱套 report。
+      为什么？因为出口工具 report_weather 的 schema 强制要一个 <code>condition</code>（形如天气串），而真正能给它的只有 get_weather——<strong>数据结构已经把顺序物理锁了大半</strong>。
+      所以本课不吓唬你"不放 system 就崩"；分工真正的收益在于：① 菜单变杂（有万能工具）或用户问域外时，没有顶层定位的 Agent 会自己扩张成"通用助手"（镜 1）；② 边界放对抽屉，是<strong>作用域正确</strong>，换更复杂的 Agent、换别的模型时它才站得住。看问题要看到这一层，别停在"我这模型乖，所以无所谓"。
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">陷阱①：description 的"自守"各自为政，合起来不等于整体边界</span>
+    <p>
+      镜 3 里每份 description 都很守规矩（连 search_web 都收窄成"只搜企业内网"）——币价因此被拦下。
+      但整台 Agent 的边界，从来不是"所有工具自守的加总"：<strong>只要有一类请求不需要任何工具，加总里就永远缺它那一格。</strong>
+      面试时把这一点讲出来（"description 管工具用不用，system 管 Agent 该不该接这个活"），是比背定义高一大截的回答。
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">陷阱②：只给工具不给定位 = 把 Agent 的形态交给模型默认值</span>
+    <p>
+      镜 1 是最好的反面教材：开发者以为"我定义了四个工具，它就是个天气助手"。
+      实际没有 system 的 Agent 没有身份，模型按<strong>通用助手</strong>的默认来：你的工具给了它联网能力，它就把整个产品变成"能查一切的搜索引擎"。
+      工具清单决定 Agent <strong>能</strong>做什么；system 决定 Agent <strong>该</strong>做什么——两者缺一不可。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 15 分钟）· 给你自己的天气循环装一份"顶层章程"</span>
+    <p>回你的 <code>code/0001-minimal-agent.py</code>（含 get_weather / get_current_time / report_weather，现在<strong>没有 system</strong>）。给它加一份顶层 system：</p>
+    <ol>
+      <li>定位 + 边界：<code>你是「天气与时间」专用助手，只处理查天气（仅支持：北京、上海、巴黎、纽约）与查当前时间；与天气、时间无关的请求（写作、闲聊、知识问答等）不要调用任何工具，直接告诉用户你只负责天气和时间。</code></li>
+      <li>流程纪律：<code>查天气：先 get_weather 取回真实数据，最后调用一次 report_weather 结构化收尾；查时间：调用 get_current_time 后用自然语言答复，不要套 report_weather。</code></li>
+      <li>把它作为 <code>system=SYSTEM</code> 传给 <code>client.messages.create</code>，然后依次问三个问题各跑一次：
+        <code>"帮我查一下上海现在的天气"</code> → <code>"东京天气怎么样"</code> → <code>"帮我写一首关于海的诗"</code>。</li>
+    </ol>
+    <p><strong>观察并回答我：</strong>① 上海是否先 get_weather、再 report_weather 结构化收尾（出口正确）？② 东京（白名单外）被谁挡下——是 system 的边界，还是 get_weather 的白名单闸门报错？③ 关键：<strong>"写诗"这句在加 system 之前</strong>，你的循环会直接写一首诗给你（第 3 课实证，无 system 时模型按通用助手默认写诗）；加上"只做天气/时间"的 system 后，它现在还会写吗？——用你手上的运行结果回答，别猜。</p>
+    <p class="fn">小坑预告：report_weather 依旧<strong>不要加进 EXEC</strong>，也记得保持第 3 课修的"出口单独 if/continue、真工具无条件 append"结构。</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 15 分钟）· 亲手复现"desc 层管不住零工具域外"</span>
+    <p>把挑战 A 那份 system<strong>删掉</strong>，改成把同一条边界<strong>只写进各工具的 description</strong>（get_weather 说"只支持四城、别的不查"、report_weather 说"只在拿到天气数据后收尾、无关别调"），然后只问一句：<code>"珠穆朗玛峰有多高？"</code></p>
+    <p>跑完回答我：模型拒了还是直接答了？再解释一遍——为什么"每个工具都写清了自己的边界"，却拦不住这一句？这跟你第 2 课学的"白名单兜得住域外、兜不住域内语义错"是不是同一类道理（都是"某层防线的覆盖范围有洞"）？</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"模型每轮会读到____样说明，其中 system 是____层的，tools 的 description 是____层的。
+    分工判据：管____的 → 工具 description / schema；管____、____、____的 → system。<br>
+    为什么 description 守不住整台 Agent 的边界？因为它只对____负责；遇到____的请求（如珠峰多高），没有____要被调，desc 层就____。
+    只给工具不给 system，Agent 会默认自己是____（镜 1 的币价去联网就是证据）。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 把"模型的信息源"从 TOOLS 一个抽屉升级成"system + tools(desc/schema) + tool_result"的全景</li>
+    <li>✅ 拿到一条能默写的分工判据：单工具 → description/schema；整台 Agent/跨工具 → system</li>
+    <li>✅ 亲手看见三镜对比：无 system 的 Agent 扩张成通用助手；system 顶层边界拦住零工具域外；description 自守漏掉零工具请求</li>
+    <li>✅ 给你自己的天气循环装了顶层章程，并验证"加 system 前后，写诗这类域外请求会不会被挡"</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use">Tool use — Claude（Anthropic 官方文档）</a><br>
+    这次精读 <strong>“Define tools” 与 “Tool use best practices” 段落</strong>：看官方对 tool description 的建议（动作导向、写清触发条件与边界），对照你第 2 课的"四问"配方——你会发现那套配方本质是给"单工具抽屉"写的，而 system 抽屉另有自己的写法。</p>
+    <p class="fn">延伸对照（学有余力再看）：Claude 官方 <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview">Prompt engineering 总览</a>里 "system prompts" 一节——官方把 system prompt 称作"给整个对话设定规则的高层级指令"，正是本课"作用域"视角的原典出处。OpenAI 对应的概念文档是 <a href="https://platform.openai.com/docs/guides/prompt-engineering">Prompt engineering guide</a> 的 system messages 部分。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把三个观察答案发我，我点评你练到了哪一层。也欢迎带着这些问题回来：system 该多长才算"够"（太长的 system 会不会稀释工具说明书）？"要不要调工具"的判断，什么时候该交给一个专门的 router 工具而不是靠 system 写死（这是第 3 课"意图路由"往深走的方向）？</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M2 · 流式输出（streaming）：为什么真实 Agent 都是"字一个个蹦出来"的，以及它跟 thinking / max_tokens 怎么相处（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 4 课 · Agent 开发冲刺课 · 完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
