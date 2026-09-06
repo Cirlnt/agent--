@@ -78,9 +78,14 @@ messages = [{"role": "user", "content": "帮我查一下上海现在的天气"}]
 
 # --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---
 while True:
-    response = client.messages.create(
-        model=MODEL, max_tokens=4096, tools=TOOLS, messages=messages, system=SYSTEM_SCOPED
-    )
+    # response = client.messages.create(
+    #     model=MODEL, max_tokens=4096, tools=TOOLS, messages=messages, system=SYSTEM_SCOPED
+    # )
+    with client.messages.stream(model=MODEL, max_tokens=4096, tools=TOOLS,
+                            messages=messages, system=SYSTEM_SCOPED) as s:
+        for chunk in s.text_stream:            # 给用户看的字逐字打出来（thinking/参数不会混进来）
+            print(chunk, end="", flush=True)
+        response = s.get_final_message()       # 与非流式 response 同形状，下面代码全不用改
 
     # 情况一：模型想调工具 -> 执行它，把结果喂回去，继续循环
     if response.stop_reason == "tool_use":
@@ -110,7 +115,7 @@ while True:
     # 情况二：模型给最终文字答案 -> 输出并结束
     if response.stop_reason == "end_turn":
         final = next(b.text for b in response.content if b.type == "text")
-        print("最终答案:", final)
+        # print("最终答案:", final)
         break
 
     # 其它停止原因（截断/拒答等）——后续课程专门处理

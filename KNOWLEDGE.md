@@ -194,4 +194,55 @@ Agent = **一个在循环里自主决定调用工具干活的大模型**（Anthr
 
 ---
 
-*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅ ｜ 第 3 课（M2）✅ ｜ 第 4 课（M2）✅（2026-09-06 实证回填）。完成新课请按顶部模板追加一节。*
+## 第 5 课 · 字是一个个蹦出来的：流式输出（streaming）· M2
+
+### ① 一句话核心
+流式 = 服务器**边生成边把 token 推给你**，用户体感 ≈ **TTFT（首字时间）**；非流式 = 服务器把整段生成完才一次性返回，用户干等的 = 生成到最后一个 token 的**总时长**。流式是 **I/O / 体验层的开关，不是新的 agent 机制**——模型照常"点单 + 说话"，agentic loop 一行不用改。反直觉实锤：**给用户看的文字能逐字蹦，但 tool_use 参数是"半个半个"到的，必须等整块收齐才能执行 → 流式省不掉"工具那一拍"**。
+
+### ② 心智模型
+- 一次生成在流式里 = **一串事件**（能默画）：`message_start → content_block_start → content_block_delta ×N → content_block_stop → message_delta（携带 stop_reason）→ message_stop`。共六种事件；delta 有三种：`text_delta` / `thinking_delta` / `input_json_delta`（各内容块类型各有各的 delta）。
+- **文字能蹦、工具不行**：text 是 text_delta 一片片拼的，边蹦边看没问题；但 tool_use 的参数是 input_json_delta"半个半个"到的（`{` `"` `city` `"` `: ` `"` `北京` `"` `}`），半截 JSON 不能 json.loads / EXEC → 必须等 `content_block_stop` 收齐完整 JSON。
+- **两条收流的姿势**：裸 `create(stream=True)` = 自己逐事件手工拼（引擎盖，教学看事件用）；高级助手 `messages.stream()` = 内置帮你拼——`text_stream` 只吐给用户看的 text 块（thinking / 参数已剥），`get_final_message()` 把流拼回**与非流式 response 同形状**的 message（content / stop_reason / usage 都在，`ToolUseBlock.input` 已是 dict）。
+- 一句话判据：**想拿工具参数，去 `get_final_message()` 返回对象的 `block.input` 取，别去流里捡碎片。**
+
+### ③ 要点清单
+- [ ] 用户体感指标 = **TTFT（首字时间）**；流式**不改总时长**、不改模型决策 / 工具顺序 / 最终答案，只改"字什么时候送达"。
+- [ ] 能默画六事件 + 三种 delta；`stop_reason` 藏在 **message_delta**（不在 message_stop）。
+- [ ] input_json_delta 半路不能执行 → 等 `content_block_stop`；这就是"流式省不掉工具那一拍"的原因。
+- [ ] `text_stream` 只吐给用户看的 text 块——想拿参数别找它，`get_final_message()` 的 `block.input` 才是收齐的 dict。
+- [ ] 高级助手 vs 裸流：`messages.stream`（内置拼装、drop-in 替换 create）vs `create(stream=True)`（自己逐事件拼，lab 镜 2 / 3a 用）。
+- [ ] end_turn 分支别把已逐字蹦过的文字**再打一遍**（切流式后原 `print("最终答案:", final)` 会二次输出——挑战 A 唯一要收拾的尾巴：删掉或只作兜底）。
+- [ ] **收尾必须查 `stop_reason != "end_turn"`**：截断 / 拒答 / 内容过滤都不是"模型自己觉得写完了"。
+- [ ] 流式让"截断"从**静默变可见**：非流式整包给你、少了尾巴常察觉不到；流式你能看见句子蹦到一半戛然而止。
+- [ ] thinking 该不该也流式展示给用户 = **产品决策**，不是技术对错。
+
+### ④ 实测发现（DeepSeek v4-flash / Anthropic 兼容端点；教师预跑 2026-09-06 + 用户实证补记见文末）
+- 镜 1 同一句"写十二行诗"：非流式干等 **2.50s** 整首出现（168 字）；流式首字 **617ms** 即到、**1.99s** 蹦完（178 字）。**总耗时几乎不变** → 流式优化空窗期，不制造"更快 / 更便宜 / 更聪明"。
+- 镜 2 裸流事件序列（关 thinking）：六种事件干净可复现；"收到收到"被拆成两个 `'收到'` text_delta。
+- 镜 3 带工具：thinking_delta 先到（index 0）→ tool_use 的 input_json_delta 碎片拼成 `{"city": "北京"}`。**某些 run 里 thinking 与 tool_use 之间会夹一个圆场 text 块（"我来帮您查询…"），也可能没有——随机，别把"有没有圆场话"当判据**。高级助手 `text_stream` 正确剥 thinking 只给可见字。
+- 镜 4 决定性：同一份 agentic loop 只切 streaming 布尔，两遍"上海天气"日志**逐字一致**（get_weather → report_weather → ✅ 结构化出口），无回归实证。
+- `thinking={"type":"disabled"}` 该端点**可用**（不 400）；与第 3 课"显式 tool_choice 会 400（Thinking mode 不支持）"不矛盾——后者是该端点 thinking 模式下的参数限制。
+- max_tokens=16 截断前提（挑战 B）：300 字散文蹦到"午后的"戛然而止，`stop_reason=max_tokens`，`usage.out=16`。
+- **实证补记（用户完成挑战 A/B，2026-09-06，code/0001 + code/_truncate.py）**：
+  - 挑战 A 手术刀改 0001 成功：唯一 API 调用点换成 `with messages.stream + text_stream 逐字打印 + get_final_message()`，agentic loop 其余一行没动；`end_turn` 分支"最终答案"兜底打印已注释（防重复打印已蹦过的字）。观察①② 对：上海工具序列 / 结构化出口与非流式成品一致（无回归）；东京 / 写诗是 system 拦截的纯文字答复，也是蹦出来的（短句蹦字感弱，最强的打字机效果在 lab 镜 1 长诗）。
+  - **观察③ 答偏（本课最重要的纠正）**：用户答"因为并没有调用这个 tool"——只对"写诗"那次 run 成立（system 拦截、零工具），不是机制。正解：**循环从不读裸流参数——`s.get_final_message()` 把 input_json_delta 碎片重新拼成完整 JSON，放进返回对象 `ToolUseBlock.input`（已是 dict）；循环从 `response.content` 取 dict，根本没见过碎片 → 不用等、不用手动拼**。上海那次 get_weather 真被调、参数真的一半一半到，循环照样直接拿完整 dict 执行——把 0001 留言改回上海跑一次即可亲手确认。
+  - 挑战 B：① stop_reason=max_tokens（蹦到半句就断）观察正确；② 只描述了非流式截断的结局（"直接输出文字、超出部分不显示"），漏了"扎眼在**断的过程被看见了**"——流式下截断发生在眼前，非流式整包送达、少了尾巴察觉不到；③ 待补 why：`stop_reason` 不等于 end_turn（截断 / 拒答 / 内容过滤）就不是真写完，不查会把半截话当最终答案交付；且 thinking 与正文**共享 max_tokens 预算**（第 3 课），thinking 吃光预算、正文被静默砍半时 stop_reason 同样是 max_tokens → 收尾查 stop_reason 是生产必修，看不出"写完没写完"就交付会翻车。
+
+### ⑤ 工程陷阱与面试追问
+- 面试题「非流式和流式，用户体感差在哪？」→ 空窗（憋完生成总时长再整包给）vs 首字即到（TTFT）；流式不改总时长。
+- 面试题「流式会让 Agent 更快 / 更省 token / 更聪明吗？」→ 都不。只改投递层：usage、决策、工具顺序、最终答案全不变（镜 4 逐字一致为证）；工具那一拍因参数要收齐完整 JSON 反而省不掉。
+- 陷阱① "以为 stream 了工具也快了"：文字能边蹦边看，工具不行（参数收不齐就不能解析、不能 EXEC）；要查天气的回合，答案永远等工具执行完、下一轮模型交回 `report_weather`。
+- 陷阱② "把 text_stream 当参数通道"：text_stream 只吐给用户看的 text 块，thinking 与工具参数都被过滤；要参数去 `get_final_message()` 的 `ToolUseBlock.input` 拿现成 dict。
+- 陷阱：拿"两次 run 内容不同 / 有没有圆场话"去反推流式副作用——那是抽样噪声与模型自主性（有无圆场话是随机的），不是流式改的。
+- 陷阱：max_tokens 截断在非流式下是**静默**的（整包给你、尾巴丢了常无感）→ 无论流式与否，生产都要收尾查 `stop_reason != "end_turn"` 发现截断 / 拒答。
+- 陷阱：切流式后 `end_turn` 分支原 `print("最终答案:", final)` 会把已逐字蹦过的文字**再打一遍**——删掉或只在没蹦过字时兜底。
+- 预留钩子：thinking 要不要流式展示给用户（产品决策）；用户点停止 / 网络断了半路取消（cancellation）怎么收尾；流式输出怎么做 eval / judge。
+
+### ⑥ 术语·厂商对照·原典
+- 术语：streaming / TTFT（time to first token，首字时间）/ event（事件）/ content_block_start / content_block_delta / content_block_stop / text_delta / thinking_delta / input_json_delta / message_delta / message_stop / stop_reason / text_stream / get_final_message / SSE
+- 厂商对照：Anthropic 高级助手 `messages.stream()`（内置拼流成 message，drop-in 替换非流式 create）vs 裸 `create(stream=True)`（逐事件手工拼）；OpenAI 对应 = `stream=True` / Responses API 的流式，同"边生成边发"、事件命名不同（本课不展开）。概念在两端都有一一对应——找 SDK 里"把流收成一个 message"的 helper 就是 `get_final_message` 的同类。
+- 原典（必读）：Claude 官方 **Streaming Messages** 文档（platform.claude.com/docs → streaming），精读 **Events 列表**与 **SDK 用法**段（`text_stream` / `get_final_message` 这些名字全来自官方那页，能默画就是真懂）。
+
+---
+
+*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅ ｜ 第 3 课（M2）✅ ｜ 第 4 课（M2）✅ ｜ 第 5 课（M2）✅（2026-09-06 流式实证 + 用户挑战 A/B 完成回填）。完成新课请按顶部模板追加一节。*

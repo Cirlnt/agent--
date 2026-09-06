@@ -23,3 +23,15 @@
 **待办（用户完成第 5 课后回填）**：跑通 lab 四镜 + 挑战 A/B 的实证与用户口头复盘；核对 code/0001（挑战 A 落点）是否被切成流式、是否保持第 4 课 SYSTEM_SCOPED + 出口结构、end_turn 分支有没有处理"已实时打印过文字"的尾巴；把 KNOWLEDGE.md 尾标推进到"第 5 课（M2）✅"并补 ①~⑥ 一节；NOTES.md 路线图 M2 剩余从"流式、成本与 token"收到只剩"成本与 token"；index.html 进度从第 5 课 → 第 6 课时再动。第 5 课完成时把本记录标注完成。
 
 （第 5 课 ①~⑥ 尚未写入 KNOWLEDGE.md——按惯例待实证完成后与"实证补记"一并回填。）
+
+---
+
+## 实证回填 · 第 5 课完成（2026-09-06）
+
+- **用户完成挑战 A（手术刀切 0001 为流式）与挑战 B（_truncate.py "蹦一半就断"）**，口头复盘已逐条核对点评：A①②（上海序列无回归、拦截答复也蹦出来）对；**A③ 答偏**（答"因为并没有调用这个 tool"，只对写诗那次 run 成立）——已点破 `s.get_final_message()` 把 input_json_delta 碎片拼回完整 dict 放进 `ToolUseBlock.input`、循环从 `response.content` 取 dict 所以从不见碎片的机制，纠正记入 KNOWLEDGE 实证补记。B①（stop_reason=max_tokens）对，B②③ 补了"断被看见 / thinking 共享预算所以要收尾查 stop_reason"的 why。
+- **code/0001 落点核对通过**：唯一 API 调用点换成 `messages.stream + text_stream + get_final_message()`；SYSTEM_SCOPED 与 report_weather 出口结构保持第 4 课成品态；`end_turn` 二次打印尾巴已处理（注释掉）。默认留言恢复"帮我查一下上海现在的天气"（仓库成品态惯例）。`code/_truncate.py` 新增并留库。
+- **KNOWLEDGE.md**：第 5 课 ①~⑥ + 实证补记已写入，尾标推进至"第 5 课（M2）✅"。
+- **NOTES.md**：M2 路线图剩余从"流式、成本与 token"收到只剩"成本与 token"。
+- **index.html** 进度未动（按待办约定，第 6 课时再推进）。
+- 待办"跑通 lab 四镜"由教师预跑覆盖并诚实化进课件；用户挑战 A/B 的观察（无回归、圆场话随机、截断可见）与镜 3/4 结论互相印证，不另设阻塞。
+- **本记录标注完成。** 下一课预告钩子（成本与 token；M6 收官衔接流式 eval / cancellation 已在 ZPD 段备注）。
