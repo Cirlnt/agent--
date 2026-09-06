@@ -33,7 +33,7 @@ def get_current_time() -> str:
 # --- 2) 把工具"说明书"给模型看：名字/说明/参数结构 ---
 TOOLS = [{
     "name": "get_weather",
-    "description": "查询某个城市的当前天气。当用户问天气时使用。",
+    "description": "查询某个城市的当前天气。当用户问天气时使用。只支持四城、别的不查(北京/上海/巴黎/纽约)。若用户问其它城市，本工具没有数据，不要调用，直接告诉用户暂不支持。",
     "input_schema": {
         "type": "object",
         "properties": {"city": {"type": "string",
@@ -52,7 +52,7 @@ TOOLS = [{
 TOOLS.append({
     "name": "report_weather",
     "description": "★最终出口★ 已经查到天气、准备答复用户时，必须调用本工具把最终结果"
-                    "以结构化字段提交；提交后不要再输出任何自然语言总结。",
+                    "以结构化字段提交；提交后不要再输出任何自然语言总结。只在拿到天气数据后收尾、无关别调",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -64,6 +64,13 @@ TOOLS.append({
     },
 })
 
+
+SYSTEM_SCOPED = (
+    "你是「天气与时间」专用助手，只处理查天气（仅支持：北京、上海、巴黎、纽约）与"
+    "查当前时间；与天气、时间无关的请求（写作、闲聊、知识问答等）不要调用任何工具，直接告诉用户你只负责天气和时间。"
+    "查天气：先 get_weather 取回真实数据，最后调用一次 report_weather 结构化收尾；查时间：调用 get_current_time 后用自然语言答复，不要套 report_weather。"
+)
+
 EXEC = {"get_weather": get_weather, "get_current_time": get_current_time}   # 名字 -> 真实函数
 
 # --- 3) 对话历史从这里开始 ---
@@ -72,7 +79,7 @@ messages = [{"role": "user", "content": "帮我查一下上海现在的天气"}]
 # --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---
 while True:
     response = client.messages.create(
-        model=MODEL, max_tokens=4096, tools=TOOLS, messages=messages,
+        model=MODEL, max_tokens=4096, tools=TOOLS, messages=messages, system=SYSTEM_SCOPED
     )
 
     # 情况一：模型想调工具 -> 执行它，把结果喂回去，继续循环
