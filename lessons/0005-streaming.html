@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 5 课 · 字是一个个蹦出来的：把 Agent 切成流式输出</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 5 课 · 模块 M2 · 工程地基</div>
+  <h1 class="lesson-title">字，是一个个蹦出来的：<br>把 Agent 切成流式输出（streaming）</h1>
+  <p class="lesson-sub">前四课你的 loop 每次都是"憋一整段、一次性给你"。真实产品里没人这么干——你对着聊天框看到的字，其实是一边生成一边蹦出来的。今天拆开 streaming：它为什么让你"更早看到字"，却<strong>不改变你的 agent 逻辑</strong>。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 60–80 分钟</span>
+    <span class="chip">需要：第 4 课跑通的环境（venv + 环境变量）</span>
+    <span class="chip">花费：几毛钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官考工程细节，有句经典开场：<em>"用户说你的 Agent 每次回答前都要转圈两三秒，你怎么破？"</em>
+    新手答"换个更快的模型"；老手答两个字——<strong>streaming（流式）</strong>——然后补一句更值钱的话：
+    <strong>流式改的是"字什么时候送到用户眼前"，不改"模型/你的 agent 怎么想、怎么算"。</strong>
+    本课的实验，就是让这半句<strong>看得见</strong>。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：非流式把"生成总时长"变成你的干等时间，流式把它还给用户</h2>
+
+  <h3>两种投递方式：整段等 vs 边生成边发</h3>
+  <p>
+    你不写 <code>stream=True</code> 时（前四课一直如此），SDK 的默认行为是：
+    <strong>服务器把整段回复生成完，才把完整 JSON 一次性返回给你</strong>。
+    于是客户端在你发出请求后的几秒里什么也拿不到——你干等的时间，约等于"模型生成到最后一个 token"的时间。
+  </p>
+  <p>
+    流式打开后，同一个 HTTP 响应里开始<strong>持续推送事件</strong>：模型每吐出一个 token，就被打包成一个事件发过来。
+    用户体感的"快"，其实是另一个指标——<strong>首字时间 TTFT（Time To First Token）</strong>：从你按下回车，到第一个字出现在屏幕上。
+  </p>
+<pre>
+非流式：  你 ——等——— 2.5s 全静默—→ 整首诗"啪"一次性出现
+流式：    你 ——0.6s—→ 第一个字 → 后面的字一个个蹦 → 1.99s 蹦完整首诗
+（实测：同一句"写一首十二行、每行有"浪"的小诗"，deepseek-v4-flash，数字来自本课镜 1 的一次真实运行）
+</pre>
+
+  <div class="callout info">
+    <span class="t">一句话记忆</span>
+    <p><strong>流式把"我等整段"变成"我先看到字"。</strong>
+    用户体感 ≈ TTFT（首字时间），不是生成总时长。流式并不会把总时长变短（实测两遍总耗时几乎一样），
+    它变的是<strong>空窗期</strong>——那一两秒的"沉默转圈"被逐字蹦出的字填上了。</p>
+  </div>
+
+  <h3>打开引擎盖：一次"生成"，其实是一串"分块增量"事件</h3>
+  <p>
+    无论流式与否，模型产出的内容都是<strong>按内容块（content block）</strong>组织的：
+    一段思考、一段给用户的话、一次工具调用……各有各的块。流式只是把这些块<strong>边生成边拆成碎片发出来</strong>。
+    事件只有六种，能默画（Anthropic 官方事件，OpenAI 大同小异）：
+  </p>
+<pre>
+message_start                        ← 一条消息开始
+  content_block_start   index=0      ← 一块内容开始（thinking / text / tool_use）
+  content_block_delta   index=0 ×N   ← 这一块的 N 个小增量
+  content_block_stop    index=0      ← 这块内容收齐了
+message_delta                        ← stop_reason（end_turn / tool_use / max_tokens）藏在这
+message_stop                         ← 一条消息结束
+</pre>
+  <p>
+    增量（delta）本身也分三类，关键看它属于哪一块、给谁看：
+  </p>
+  <ol class="steps">
+    <li><strong><code>text_delta</code></strong> —— 给用户看的字，<strong>一到就能显示</strong>。镜 2 实测一条"收到收到"被拆成两个 text_delta 碎片：<code>'收到'</code>、<code>'收到'</code>。</li>
+    <li><strong><code>thinking_delta</code></strong> —— 模型的思考碎片，通常<strong>不展示给用户</strong>。flash 在正片前常先吐一整段 thinking（本课镜 3a 实测前导 19+ 段增量）。</li>
+    <li><strong><code>input_json_delta</code></strong> —— <code>tool_use</code> 块参数的<strong>半截 JSON</strong>，收到一半不能解析、更不能执行（见下）。</li>
+  </ol>
+
+  <h3>工具参数也是"半个半个"来的——流式省不掉工具那一拍</h3>
+  <p>
+    模型决定调 <code>get_weather</code> 时，参数的 JSON 在流里被拆成一片片到达。镜 3a 实测碎片：
+  </p>
+<pre>
+input_json_delta 碎片：'{'   '"'   'city'   '"'   ': '   '"'   '北京'   '"'   '}'
+                                 ↓ 全部拼起来
+                          '{"city": "北京"}'      ← 收齐才能 json.loads / 执行！
+</pre>
+  <p>
+    这带出一个对 Agent 至关重要的事实：<strong>文字可以"边蹦边看"，工具调用不行。</strong>
+    就算参数是流式到的，你也必须等 <code>content_block_stop</code> 把它拼成完整 JSON，才能 <code>EXEC[name](**block.input)</code>。
+    也就是说：<strong>对"要调工具的那一拍"，流式帮不上忙</strong>——那一拍的耗时由"模型把参数想完 + 工具执行 + 结果喂回"决定，跟字传得快不快无关。
+    （能流式的，是工具调用前那几句给用户的圆场话。）
+  </p>
+
+  <h3>收尾彩蛋：get_final_message() 让流式变成"改一行就切回来"</h3>
+  <p>
+    手写循环很啰嗦？Anthropic SDK 给了你一个高级助手 <code>client.messages.stream(...)</code>：调用字段和
+    <code>client.messages.create</code> <strong>一字不差</strong>，只是外面套了个 <code>with</code>，里面多了两个好用的东西：
+  </p>
+<pre>
+with client.messages.stream(model=MODEL, max_tokens=4096, tools=TOOLS,
+                            messages=messages, system=SYSTEM) as s:
+    for chunk in s.text_stream:      # ① 只吐"给用户看的字"（thinking 已自动剥掉）
+        print(chunk, end="", flush=True)
+    response = s.get_final_message()  # ② 把流拼回一个"和非流式 response 形状一模一样"的对象
+</pre>
+  <p>
+    <code>get_final_message()</code> 返回的对象带 <code>.content</code>（含 <code>ToolUseBlock.input</code> 已是 dict）、
+    <code>.stop_reason</code>、<code>.usage</code>——<strong>跟你前四课用的非流式 <code>response</code> 是同一种对象</strong>。
+    这意味着你 0001 那套 agentic loop 的 <code>if stop_reason == "tool_use"</code> 等<strong>逻辑一行都不用改</strong>，
+    只换"这一轮怎么收 response"。这就是本课核心的工程含义：
+  </p>
+
+  <div class="callout info">
+    <span class="t">本课一句话核心（请记到能默写）</span>
+    <p><strong>流式是 I/O / 体验层的开关，不是新的 agent 机制。</strong>
+    模型照常"点单 + 说话"；流式只改"字什么时候到你屏幕"。给用户看的文字可以逐字蹦；但 tool_use 参数必须攒齐整段 JSON 才能执行——
+    所以工具那一拍省不掉。切流式 = 换一种收 response 的姿势 + 顺带把字实时打出来，agent 逻辑原封不动。</p>
+  </div>
+
+  <div class="callout danger">
+    <span class="t">诚实提醒（教师实测，必读）：别把"两个副作用"赖到流式头上</span>
+    <p>
+      ① <strong>两次跑内容不同，是抽样噪声，不是流式改的。</strong>镜 1 里非流式写出一首 168 字的诗、流式写出另一首 178 字的——
+      模型每次抽样本来就不同；流式只改投递，不改生成。比时间、比事件，别比文本。② <strong>首字延迟会波动。</strong>
+      flash 默认常先吐一段 thinking，首段可见文字要等它想完才来（本课多次实测首字 0.6s–1.3s 之间波动）。
+      想演示"字立刻蹦"，可显式 <code>thinking={"type":"disabled"}</code>；真实产品是否关掉 thinking 是产品决策，不是流式的锅。
+    </p>
+  </div>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">一次非流式调用里，用户从头到尾看不到任何字，直到整段回复生成完才一次性全部出现。对用户来说，这段"沉默"的长度最接近哪个时间？</p>
+      <div class="opts">
+        <button class="opt" data-correct="true" data-explain="对。非流式 = 服务器把整段憋完才整包返回，你干等的就是“生成到最后一个 token”的总时长；TTFT（首字时间）在非流式下等于总时长。">
+          <span class="tag">A</span><span>生成整段回复的总时长</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="网络传输通常远小于生成时间；这段“沉默”的大头是模型在服务端生成，不是字节在网线上跑。">
+          <span class="tag">B</span><span>从你机器到服务器的网络延迟</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="max_tokens 是预算上限，不是“等多久”；它管这段回复最多多长，不管什么时候送到你手里。">
+          <span class="tag">C</span><span>max_tokens 决定的生成时长上限</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="只有流式才会让你早看到字；非流式恰恰是“没有分段送达”才造成整段等待。“两个 token 的间隔”在流式下也有，是正常抖动，不是干等的原因。">
+          <span class="tag">D</span><span>两个 token 之间的间隔时间</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">流式下模型决定调用 get_weather，你已经收到几片 input_json_delta：先是“{”，再是“city”，再是“北…”（还没到 content_block_stop）。这时你能直接执行 get_weather 吗？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="不行。半截 JSON 不能安全解析（json.loads 必崩），参数也还没“定稿”；不能用“猜”代替契约。">
+          <span class="tag">A</span><span>能，参数已经有“北”字了，够猜了</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。tool_use 参数在流式下是“半个半个”到的（input_json_delta），必须等 content_block_stop 把碎片拼成完整 JSON，才能 json.loads、才能 EXEC——这就是“流式省不掉工具那一拍”的原因。">
+          <span class="tag">B</span><span>不能，要等整个块收齐（content_block_stop）拿到完整 JSON 才能执行</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="text_stream 只吐“给用户看的字”，跟工具参数无关；完整参数要等块收齐，才出现在 get_final_message 的 ToolUseBlock.input 里。">
+          <span class="tag">C</span><span>不能，得改用 text_stream 才能收到参数</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="执行不执行是你代码的决定；但想执行也得有完整参数——半截 JSON 根本没法作为 dict 传给函数。模型“点了工具”不等于“参数齐了”。">
+          <span class="tag">D</span><span>能，只要模型点了工具就行，参数后面再补</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">把 0001 的 client.messages.create(...) 换成 client.messages.stream(...) 并在结尾调 get_final_message()，返回的对象和前四课用的非流式 response 相比——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="恰恰相反：get_final_message() 返回的对象带同一个 stop_reason（end_turn / tool_use / max_tokens）和同样的 content 结构，循环里的判断逻辑一行都不用动。">
+          <span class="tag">A</span><span>stop_reason 没了，得自己从事件里数出来</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="不只是 content：usage、stop_reason 都在，形状与非流式一致。所以才能“逻辑一行不改”。">
+          <span class="tag">B</span><span>只剩 text，工具块全都丢了</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。get_final_message() 把流重新拼成一个和非流式 response 同形状的 message：.content 里 ToolUseBlock.input 已是 dict，.stop_reason、.usage 都在——你的 agentic loop 逻辑一行不用改。">
+          <span class="tag">C</span><span>形状一模一样：content / stop_reason / usage 都在，只是投递过程变流式了</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="反了：messages.stream 是高级助手（内置帮你拼装）；裸 create(stream=True) 才是要自己逐事件手工拼的底层姿势。">
+          <span class="tag">D</span><span>需要自己手工把每个事件拼成 message，很麻烦</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">判断题：流式会让 Agent 的"总处理时长"变短，并改变它点工具的顺序与最终答案。——这句话对吗？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="流式不碰模型内部的生成；一次生成该花多久还多久，该点哪个工具还点哪个。镜 4 两遍日志逐字一致就是证据。">
+          <span class="tag">A</span><span>对，流式加速了模型思考</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="流式不是 prompt 也不是 schema，不改变模型做决策看到的任何信息；工具顺序由 system / description / 模型自己决定，流式插不上手。">
+          <span class="tag">B</span><span>对，流式会改变工具调用顺序</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="这句是错的——正是本课要纠正的误解。流式只改“字什么时候送达”（I/O / 体验层），不改生成逻辑，总时长大致不变；工具顺序与最终答案由模型决策决定，与流式无关。">
+          <span class="tag">C</span><span>错。流式只改投递方式，总时长大致不变，agent 决策 / 顺序 / 答案都不变</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="工具那一拍反而省不掉：参数要收齐完整 JSON 才能执行。“看起来字在蹦”不等于“整个 agent 变快了”，这正是本课要防的错觉。">
+          <span class="tag">D</span><span>错是错，但流式至少让工具调用那半拍变快了</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：先看四镜，再亲手把 0001 切成流式（约 30 分钟）</h2>
+  <p>核心思想：<strong>用事件和计时说话，别听我说教。</strong>四镜带你从"感受差异"到"看见事件"再到"证明逻辑不变"。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境沿用第 1 / 2 / 3 课</span>
+    <p>激活第 1 课那个 venv、让终端看得到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>（忘了就翻第 1 课第 3 步）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 跑四镜实验，全程一条命令</span>
+    <p>文件已写好：<code>D:\agent学习\code\0005-streaming-lab.py</code>。跑它：</p>
+<pre>python code/0005-streaming-lab.py</pre>
+    <p>四镜各盯一个东西：</p>
+<pre><span class="c"># 镜 1 · 同一句"写十二行诗"，非流式 vs 流式各写一次 —— 感受"干等"vs"蹦字"</span>
+非流式 → 你干等 2.x 秒，整首"啪"地出现        <span class="c">（你等的其实是最后一 token 的时间）</span>
+流式   → 首字 ~0.6s 就到，后面一个字一个字蹦     <span class="c">（总耗时 ~2s，和不流式差不多）</span>
+        盯：首字时间 vs 总耗时；两首诗内容不同是抽样噪声，别比内容。
+
+<span class="c"># 镜 2 · 打开引擎盖：裸 create(stream=True) 逐事件打印（已关 thinking 让序列干净）</span>
+你只会看到六种事件：message_start → content_block_start(index, text)
+  → content_block_delta(text_delta) ×N → content_block_stop
+  → message_delta(stop_reason=end_turn) → message_stop
+        盯：一段 text 是由很多个 text_delta 碎片拼成的；stop_reason 在 message_delta。
+
+<span class="c"># 镜 3 · 带工具：tool_use 参数是"半个半个"到的</span>
+3a 裸流 + get_weather：前导一段 thinking_delta（已折叠提示），然后
+   input_json_delta 碎片 '{' '"' 'city' '"' ': ' '"' '北京' '"' '}'  → 拼成完整 JSON
+3b 高级助手 messages.stream()：text_stream 只吐给用户看的字（thinking 已剥），
+   get_final_message() 返回 stop_reason=tool_use，里面 ToolUseBlock.input 已是 dict
+        盯：3a 里"半个 JSON"绝不能执行；3b 里你一行没手工拼，dict 直接到手。
+
+<span class="c"># 镜 4 · 决定性：同一份 agentic loop，一个 streaming 开关，跑两遍同一句"上海天气"</span>
+两遍的工具调用序列、结构化出口必须逐字一致：
+   get_weather({'city': '上海'}) → report_weather({...}) → ✅ 结构化出口 {...}
+        盯：日志是否完全一致？一致 = 流式只改了投递，没改 agent 逻辑。</pre>
+  </div>
+
+  <div class="callout danger">
+    <span class="t">陷阱①：以为"streaming 了，工具也快了"</span>
+    <p>
+      镜 3 的碎片就是证据：<strong>文字能边蹦边看，工具不行</strong>——参数收不齐就不能解析、不能执行。
+      所以一个要查天气的回合，圆场话（若有）会先逐字蹦给你看，但真正的答案永远要等 <code>get_weather</code> 执行完、
+      下一轮模型把 <code>report_weather</code> 交回来。流式能优化的，是"模型纯输出文字的回合"（比如长答案、逐字稿、拒绝话术）。
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">陷阱②：把 text_stream 当成能直接拼出工具参数的通道</span>
+    <p>
+      <code>text_stream</code> 只吐<strong>给用户看的 text 块</strong>，thinking 和工具参数都被过滤掉了。
+      想要工具参数，别去流里捡碎片——在 <code>with</code> 里收完直接 <code>get_final_message()</code>，
+      从返回对象的 <code>ToolUseBlock.input</code> 拿现成的 dict 即可（镜 3b / 镜 4 就是这么干的）。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 15 分钟）· 手术刀式地把 0001 切成流式</span>
+    <p>打开 <code>code/0001-minimal-agent.py</code>（第 4 课成品态：有 SYSTEM_SCOPED、出口结构完好）。你要改的<strong>只有一处 API 调用点</strong>，其余一行不碰：</p>
+    <ol>
+      <li>找到唯一那行 <code>response = client.messages.create(model=..., max_tokens=4096, tools=TOOLS, messages=messages, system=SYSTEM_SCOPED)</code>。</li>
+      <li>把它换成流式收 response（字段一字不差，只套 <code>with</code>）：</li>
+    </ol>
+<pre>with client.messages.stream(model=MODEL, max_tokens=4096, tools=TOOLS,
+                            messages=messages, system=SYSTEM_SCOPED) as s:
+    for chunk in s.text_stream:            # 给用户看的字逐字打出来（thinking/参数不会混进来）
+        print(chunk, end="", flush=True)
+    response = s.get_final_message()       # 与非流式 response 同形状，下面代码全不用改</pre>
+    <ol start="3">
+      <li>唯一要收拾的尾巴：<code>end_turn</code> 分支里原来最后那句 <code>print("最终答案:", final)</code> 会把已经逐字蹦过的文本<strong>再打一遍</strong>。既然字已经实时给用户看过了，这句要么删掉、要么只在没蹦过字时兜底打印。</li>
+      <li>依次问三句各跑一次（沿用第 4 课成品态的三句）：<code>"帮我查一下上海现在的天气"</code> → <code>"东京天气怎么样"</code> → <code>"帮我写一首关于海的诗"</code>。</li>
+    </ol>
+    <p><strong>观察并回答我：</strong>① 上海的工具序列与结构化出口，和第 4 课非流式成品一致吗（无回归）？② 东京 / 写诗这两句是 system 拦截的纯文字答复——现在它是"蹦出来的"还是一下全出的？（注意：拒绝话术很短，蹦字感弱；想看最明显的打字机效果，回 lab 镜 1 那首长诗。）③ 关键一题：<strong>get_weather 的参数在流式下明明是"半个半个"到的（input_json_delta），为什么你的循环却不用等碎片、直接就能拿到完整 dict 执行？</strong>——用你改完的代码回答，别猜。</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 10 分钟）· 让它"蹦到一半就断"</span>
+    <p>流式把第 3 课埋的 <code>max_tokens</code> 截断问题，从"静默"变成"看得见"。另存一个小文件 <code>code/_truncate.py</code> 跑：</p>
+<pre>import anthropic, sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+c = anthropic.Anthropic()
+with c.messages.stream(model="deepseek-v4-flash", max_tokens=16,
+                       thinking={"type": "disabled"},
+                       messages=[{"role": "user", "content": "请写一篇 300 字散文《窗外》"}]) as s:
+    for ch in s.text_stream:
+        print(ch, end="", flush=True)
+    fin = s.get_final_message()
+print(f"\nstop_reason={fin.stop_reason}")</pre>
+    <p>跑完回答我：① 文字是不是蹦到半句就戛然而止？<code>stop_reason</code> 是什么？（实测停在"午后的…"，stop_reason=max_tokens。）② 为什么这段"断了"在你眼里比非流式更扎眼——非流式下截断会是什么样？（整段憋完才给你，少了尾巴你常常察觉不到。）③ 生产代码为什么无论流式与否，都必须在收尾查 <code>stop_reason != "end_turn"</code> 来发现截断 / 拒答？（提示：想想第 3 课"thinking 也吃这同一个预算"。）</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"非流式 = 服务器把整段回复____后一次性返回，用户干等的其实是____的时间；
+    流式 = 服务器____就把 token 推过来，用户体感 ≈ ____（首字时间）。<br>
+    一次生成在流式里是一串____事件：____开始、若干____增量（____/____/____）、____结束、
+    ____ 携带 stop_reason。<br>
+    工具参数在流式下是____（input_json_delta）到的，必须等____收齐才能 json.loads / 执行；
+    所以流式____工具那一拍，只能让____的文字先蹦。<br>
+    高级助手 messages.stream() 的 ____ 把流拼回与非流式 response ____的对象，
+    所以我 0001 的 agentic loop 逻辑____。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 分清"整段等"与"逐字蹦"，拿到 TTFT（首字时间）这个用户体感指标</li>
+    <li>✅ 能默画流式的最小事件序列（六种事件 + 三种 delta），知道 stop_reason 藏在 message_delta</li>
+    <li>✅ 看懂 tool_use 参数是"半个半个"到的（input_json_delta），理解"流式省不掉工具那一拍"</li>
+    <li>✅ 会用一个开关级改动把 0001 切成流式，并证明"逻辑一行不改、行为无回归"</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://platform.claude.com/docs/en/build-with-claude/streaming">Streaming Messages — Claude（Anthropic 官方文档）</a><br>
+    这次精读 <strong>事件列表（Events）</strong>与 <strong>SDK 用法</strong>段落：对照本课的六种事件和 <code>get_final_message</code> / <code>text_stream</code>——你会发现本课这些名字全是从官方那页抄下来的，能默画就是真懂。</p>
+    <p class="fn">延伸对照（学有余力再看）：OpenAI 对应概念在 <a href="https://platform.openai.com/docs/guides/streaming-responses">Streaming responses（OpenAI 文档）</a>——同样的"边生成边发"，只是事件命名不同（本课不展开）。想深挖"流式下怎么做 eval / 用户点停止怎么取消"的同学，把问题记下来，是后续课的钩子。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把三个观察答案发我，我点评你练到了哪一层。也欢迎带着这些问题回来：流式到底该不该把 thinking 也展示给用户（产品决策）？"用户点了停止 / 网络断了"半路取消怎么收尾（cancellation）？——更多钩子见页脚下一课预告。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M2 收官 · 成本与 token：把每次调用算成账（定价、token 计数、max_tokens 预算、prompt caching）——你的 Agent 每个月到底烧多少钱，面试必问（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 5 课 · Agent 开发冲刺课 · 完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

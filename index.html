@@ -36,7 +36,7 @@
     <div class="stat"><div class="k">使命</div><div class="v"><a href="MISSION.md">MISSION.md</a></div></div>
     <div class="stat"><div class="k">资源库</div><div class="v"><a href="RESOURCES.md">RESOURCES.md</a></div></div>
     <div class="stat"><div class="k">术语表</div><div class="v"><a href="reference/glossary-core-terms.html">glossary-core-terms.html</a></div></div>
-    <div class="stat"><div class="k">进度</div><div class="v">第 4 课 <small>（M2 · 提示词工程）</small></div></div>
+    <div class="stat"><div class="k">进度</div><div class="v">第 5 课 <small>（M2 · 流式输出）</small></div></div>
   </div>
 
   <div class="module">
@@ -69,13 +69,21 @@
       <span class="t">动手文件</span>
       <span class="d">code/0003-structured-output-lab.py 已就绪（三镜 + 出口强制小实验）+ 挑战 A/B（改第 1 课循环 + 8 句小 eval）</span>
     </a>
-    <a class="card now" href="lessons/0004-prompt-engineering.html">
+    <a class="card" href="lessons/0004-prompt-engineering.html">
       <span class="t">第 4 课 · 话要放对抽屉：system prompt 与 description 的分工</span>
       <span class="d">模型每轮读四样说明 → 分工判据（管一个工具 vs 管整台 Agent）→ 三镜实锤：不加 system 的 Agent 会悄悄扩成"通用助手"，desc 自守拦不住零工具域外</span>
     </a>
-    <a class="card now" href="lessons/0004-prompt-engineering.html#hands-on">
+    <a class="card" href="lessons/0004-prompt-engineering.html#hands-on">
       <span class="t">动手文件</span>
       <span class="d">code/0004-prompt-engineering-lab.py 已就绪（三镜：裸奔 / system 顶层定位 / desc 摊边界）+ 挑战 A/B（给第 1 课循环装顶层章程 + 复现珠峰漏拦）</span>
+    </a>
+    <a class="card now" href="lessons/0005-streaming.html">
+      <span class="t">第 5 课 · 字是一个个蹦出来的：把 Agent 切成流式输出</span>
+      <span class="d">非流式=整段等 vs 流式=逐字蹦（TTFT 首字时间）→ 六种事件 + 三种 delta → 工具参数半个半个到（省不掉工具那拍）→ 高级助手 text_stream / get_final_message 让 loop 一行不改</span>
+    </a>
+    <a class="card now" href="lessons/0005-streaming.html#hands-on">
+      <span class="t">动手文件</span>
+      <span class="d">code/0005-streaming-lab.py 已就绪（四镜：干等vs蹦字 / 裸流看事件 / 工具参数碎片 / streaming 开关对照）+ 挑战 A/B（手术刀切 0001 成流式 + max_tokens 蹦一半就断）</span>
     </a>
   </div>
 
