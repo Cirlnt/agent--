@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 7 课 · Agent 怎么记得住？多轮状态与上下文管理</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 7 课 · 模块 M3 · 记忆与上下文 · <strong>第一课</strong></div>
+  <h1 class="lesson-title">Agent 怎么记得住？<br>（多轮状态与上下文管理）</h1>
+  <p class="lesson-sub">前六课你的 Agent 每次只答一个问题就退出——因为它天生就是这样：模型是<strong>无状态函数</strong>，上一次对话一个字都留不下。今天把三件事讲透：<strong>Agent 的"记忆"到底存在哪</strong>、怎么让它<strong>真·多轮对话还不断片</strong>、对话太长后怎么用<strong>截断 / 滑动窗口 / 滚动摘要</strong>三招管住——这正是第 6 课那句"别让对话无限长"的实现课。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 60–80 分钟</span>
+    <span class="chip">需要：第 6 课跑通的环境（venv + 环境变量）</span>
+    <span class="chip">花费：几分钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官爱问一句：<em>"上次聊到一半用户走了，回来你的 Agent 还记得刚才的事吗？怎么做的？"</em>
+    新手会答"给模型加个记忆"；老手会先纠正提问里的错觉——<strong>模型没有记忆可加</strong>，它每轮都是白纸一张；
+    Agent 能"记住"，唯一原因是<strong>你每轮把历史原样喂回去</strong>。所以真正的问题是：
+    "你（应用层）把什么喂回去了、喂不下的怎么办？" 本课就用实验把这条机制和它的取舍量给你看。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：记忆不在模型里，在你喂回去的历史里</h2>
+
+  <h3>模型无状态：它不记得你，靠的是你"拍档案"</h3>
+  <p>
+    第 6 课立过这条：模型是<strong>无状态函数</strong>，每次调用它只能看到你这次发过去的内容。
+    把这句话换到"记忆"视角：<strong>Agent 的短期记忆 = 当前上下文窗口里，你塞进去的全部历史</strong>。
+    它会"记得你上次说什么"，不是因为脑子里存了，而是因为<strong>那轮对话的文字还在 messages 里、又被你发了一遍</strong>。
+  </p>
+<pre>第 1 问：你发  [system+工具] + [用户：查上海天气]  → 模型答"上海 多云23°C"
+         你把 这轮一问一答 存进 messages
+第 2 问：你发  [system+工具] + [上海那轮] + [用户：那北京呢？]  → 模型看到上海那轮，才懂"呢"指天气
+         你把 这轮一问一答 也存进 messages
+第 3 问：你发  [system+工具] + [前两轮] + [用户：我第一次问的哪个城市？] → 答"上海"</pre>
+  <p>
+    这段对话每轮的"记忆"，全都在 <code>messages</code> 里、由你维护。模型那边零存储。
+    本课镜 1 会做个决定性对照：同样问"我第一次问的哪个城市"，带历史答得出来，<strong>冷启动（零历史）只能承认不知道</strong>。
+  </p>
+
+  <div class="callout danger">
+    <span class="t">新手第一坑：多轮"断片"几乎都是因为你少存了一边</span>
+    <p>
+      让它多轮记住，代码只要求两件事：<strong>① 每轮把用户的话 append 进 messages；② 每轮也把模型（助手）的答复 append 进去</strong>。
+      很多人只做①不做② → 下一轮模型看不到它自己上次说过什么，历史也常因 user/user 连发被 API 拒收（400）。
+      记住这句：<strong>messages 是一问一答成对长的，漏了 assistant 那半，对话当场断片。</strong>（挑战 A 让你亲手补这一半。）
+    </p>
+  </div>
+
+  <h3>记忆分两层看：窗口里"现成"的，和窗口外"存着"的</h3>
+  <p>
+    做 Agent 时把"记忆"拆成两层，思路会特别清楚：
+  </p>
+  <ul>
+    <li><strong>① 短期记忆 = 上下文窗口</strong>：就是 system + 工具 + 历史，每轮随请求整段送进去。第 5 课以前你写的循环、镜 1 的多轮对话都只在这层。</li>
+    <li><strong>② 长期记忆 = 你自己存出去的东西</strong>：文件 / 数据库 / 向量库（RAG）——模型自己不碰它，<strong>需要时由你检索最相关几段再喂进来</strong>。本课只立概念、指路；下一课（M3 第二课）动手做 RAG。</li>
+  </ul>
+
+  <div class="callout info">
+    <span class="t">一句话记忆</span>
+    <p><strong>Agent 没有记忆，只有"你每轮喂回去的历史"。</strong>它"记得"= 历史还在输入里；多轮不断链 = 你原样喂回；
+    历史太长会越聊越贵（第 6 课）甚至坏掉 → 就得管历史。想要"记得更久又不多烧钱"，出路不是把历史喂全，
+    而是只喂<strong>相关</strong>的——那是检索注入（RAG），下一课。</p>
+  </div>
+
+  <h3>上下文窗口是"稀缺预算"：越长 ≠ 越聪明</h3>
+  <p>
+    窗口不是无限大的。就算不撞 400，长到一定程度模型的表现也会悄悄下降——Anthropic 实测在文档里找信息：
+    <strong>8k token 内找回率 95%+，32k 掉到 ~78%，到 100k 时约三成关键信息会漏</strong>（"context rot / lost in the middle"）。
+    所以别天真地"把窗口买大就完事"，而是像管理内存一样<strong>管理放进窗口的东西</strong>。
+    第 6 课讲成本时你已经为"别让对话无限长"埋了钩子——今天的三招就是那根钩子的实现。
+  </p>
+
+  <h3>三招管长对话：截断 / 滑动窗口 / 滚动摘要</h3>
+  <table style="width:100%;border-collapse:collapse;margin:.8rem 0">
+    <thead>
+      <tr style="border-bottom:2px solid var(--rule);text-align:left">
+        <th style="padding:.4rem .6rem">策略</th>
+        <th style="padding:.4rem .6rem">做法</th>
+        <th style="padding:.4rem .6rem">记住的</th>
+        <th style="padding:.4rem .6rem">丢掉的</th>
+        <th style="padding:.4rem .6rem">额外代价</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--rule)">
+        <td style="padding:.4rem .6rem"><strong>全留 keep-all</strong></td>
+        <td style="padding:.4rem .6rem">什么都不做，历史无限堆</td>
+        <td style="padding:.4rem .6rem">全部 ✅</td>
+        <td style="padding:.4rem .6rem">无</td>
+        <td style="padding:.4rem .6rem">每轮只涨不跌，迟早撞上限 / 越聊越贵</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--rule)">
+        <td style="padding:.4rem .6rem"><strong>滑动窗口</strong></td>
+        <td style="padding:.4rem .6rem">只留最近 N 轮，老的整段裁掉</td>
+        <td style="padding:.4rem .6rem">最近 N 轮</td>
+        <td style="padding:.4rem .6rem">N 轮之前的<b>全部</b></td>
+        <td style="padding:.4rem .6rem">无（最省）</td>
+      </tr>
+      <tr>
+        <td style="padding:.4rem .6rem"><strong>滚动摘要</strong></td>
+        <td style="padding:.4rem .6rem">老历史压成一段摘要，留最近几轮原文</td>
+        <td style="padding:.4rem .6rem">"要义"</td>
+        <td style="padding:.4rem .6rem">细节、数字可能被压丢</td>
+        <td style="padding:.4rem .6rem">每压一次花<b>一次模型调用</b>；压缩器会"自作主张"</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    三招没有谁"全对"——它们各自用"丢一点东西"换"预算封顶"。真正的问题永远是你<b>愿意丢哪部分</b>。
+  </p>
+
+  <div class="callout info">
+    <span class="t">本课一句话核心（请记到能默写）</span>
+    <p><strong>记忆 = 你每轮喂回去的历史；历史无限长不可取 → 三招管理：截断 / 滑动窗口 / 滚动摘要。</strong>
+    全留记得全但越聊越贵；窗口封顶最省但整段失忆；摘要封顶又留住要义，可它每次压缩都要花一次模型调用、还会丢细节。
+    面试答"怎么给 Agent 加记忆"——先答无状态 + 历史喂回，再答这三招的取舍，就比说"我用向量库"高一档（向量库是下一课的工具，不是本课的答案）。</p>
+  </div>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">你的 Agent 和用户聊了 20 轮，"记得"前 10 轮说的内容。这 20 轮的"记忆"实际上存在哪里？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="模型内部没有你的记忆单元。它是无状态函数，每轮只见你这次发过去的内容；『记得』纯粹因为那轮文字还在你的输入里。">
+          <span class="tag">A</span><span>模型内部有一个隐藏的"记忆区"，自动存了 20 轮</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。记忆在你维护的 messages 列表里：system+工具+20 轮历史，每轮被整段重新发给模型。模型不存，你存、你喂。">
+          <span class="tag">B</span><span>你代码里的 messages 历史，每轮原样喂回给模型</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="工具是执行动作的，工具说明书只是被模型读到的一段文本；没有哪个工具帮你偷偷记住对话（除非你自己写一个记忆工具存出去，那是另一回事）。">
+          <span class="tag">C</span><span>工具调用时会自动把对话存进工具状态</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="如果靠随机，那就不是记忆了——能稳定对上，正说明是历史在被整段重读。">
+          <span class="tag">D</span><span>看运气：模型这次碰巧"记得"就记得</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">多轮对话最常见的"断片" bug 是下面哪一种？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="这是模型能力问题，不是断片主因；而且换了强模型也一样要喂历史才记得。">
+          <span class="tag">A</span><span>模型太弱，记不住那么长的上下文</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="system 太长确实稀释注意力，但『断片』指它看不到上一轮——与 system 长度关系不大。">
+          <span class="tag">B</span><span>system 提示词写太长了</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。很多人每轮只把用户的话 append 进 messages，忘了把模型（助手）的答复也 append 进去 → 下一轮模型看不到它自己说过什么，且 user 连发还会被 API 拒收（400）。一问一答要成对存。">
+          <span class="tag">C</span><span>只 append 用户的话，漏了 append 模型的答复</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="方向对但还差一步：窗口裁掉的是『最早』不是『最近』；而且窗口只是三招之一，摘要/检索是另外的取舍。">
+          <span class="tag">D</span><span>没有把最近几轮单独拎出来优先保存</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">同一场很长的对话：用「滑动窗口」和用「滚动摘要」各压历史，下列说法正确的是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="反了：滚动摘要每次压缩要多花一次模型调用（让压缩器把老对话读一遍、写一段要点），比窗口贵。">
+          <span class="tag">A</span><span>滚动摘要比滑动窗口便宜，因为摘要字数少</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="窗口是『一刀切掉最早』——不是凭重要性留，是凭新旧留；最早的往往是最容易先丢的。">
+          <span class="tag">B</span><span>滑动窗口会保留"最重要的"历史、丢掉"不重要的"</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对。窗口把 N 轮之前整段裁掉（想不起来就是没有）；摘要把老的压成一段要点塞进输入，让模型对老话题仍有『模糊但正确』的记忆，代价是每次压缩花一次模型调用、细节数字可能被压丢。">
+          <span class="tag">C</span><span>窗口"忘了就是真没有"；摘要"保要义、丢细节、付压缩费"</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="窗口和摘要都只是『输入预算不够时丢什么』的取舍，都做不到既记住全部细节又不烧钱——那是下一课检索引回的活。">
+          <span class="tag">D</span><span>两者都能做到：记得全部细节 + prompt 永远很小</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">镜 2 有个反直觉发现：滑动窗口把最早几轮裁掉后，模型回答"最初航班号是多少"时答成了后来的新航班号。这说明——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="恰恰相反：输入里根本没有最早的航班号了，模型是在只见『后来改的号』的情况下编了个最像样的。">
+          <span class="tag">A</span><span>窗口策略其实记得很好，只是换了个说法</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="把输入裁剪掉一段，模型并不会因此更诚实——它只会基于剩下的内容给一个看似合理的答案。">
+          <span class="tag">B</span><span>模型知道自己丢了历史，所以会老实说不知道</span>
+        </button>
+        <button class="opt" data-correct="true" data-explain="对，这是裁剪最隐蔽的代价：模型不只『忘了』，还可能把后来改的值当成原定值答出来——一个看似自信、其实错的答案。做上下文管理时必须意识到：裁剪后模型的答案『不可信』，要么检索找回原文，要么让它明确承认没有记录。">
+          <span class="tag">C</span><span>裁剪不只是失忆：它会拿『后来的值』顶替『原来的值』，自信地答错</span>
+        </button>
+        <button class="opt" data-correct="false" data-explain="工具（get_weather 查天气）只能查『现在』，查不了『原定的航班号』——这种回忆题靠工具救不回来，只能靠历史/摘要/检索。">
+          <span class="tag">D</span><span>因为模型该去调工具现查却没查</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：三镜看"记得"与"取舍" + 把 0001 改成真多轮（约 35 分钟）</h2>
+  <p>核心思想：<strong>别听我说教，看实测。</strong>三镜带你把"记忆=喂回去的历史"和"三招的取舍"各看一遍。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境沿用第 1–6 课</span>
+    <p>激活第 1 课那个 venv、让终端看得到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>（忘了翻第 1 课第 3 步）。</p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 跑三镜实验，全程一条命令</span>
+    <p>文件已写好：<code>D:\agent学习\code\0007-memory-context-lab.py</code>。跑它：</p>
+<pre>python code/0007-memory-context-lab.py</pre>
+    <p>三镜各盯一个东西（下面是我教师预跑的一次真实输出，你的数字会小幅浮动）：</p>
+<pre><span class="c"># 镜 1 · ★ 无状态实锤：历史在，才记得住</span>
+连问 上海天气 → 那北京呢？(靠历史才懂"呢") → 问"我第一次问的哪个城市？" 答得上；
+同一个问题冷启动（零历史）→ 只能承认"还没有问过任何城市"。
+        盯：模型能答，是因为【事实文字还在输入里】(打印里那个 True/False 就是证据)。
+
+# 镜 2 · ★ 三招管长对话：同一段 6 轮备忘，谁记得住、prompt 各多大
+A 全留  每轮喂的 prompt = [236, 264, 295, 332, 363, 423] 只涨不跌（第 6 课曲线照搬）
+        两道"最早事实"题：✅✅ 全答对
+B 窗口  只留最近 2 轮 → prompt 封顶 ≈ 229 token
+        两道题：❌❌ —— 航班号答成【后来改的 HO1252】（拿新值顶替原值！）；会议号老实说"历史里没有"
+C 摘要  老 5 轮压成一句（多花一次压缩调用）→ prompt 封顶 ≈ 302 token
+        两道题：✅✅ 全答对（摘要里点名保留的代号都在）
+        盯：A 记得全但越聊越贵；B 最省却整段失忆；C 用一次压缩调用换回"要义"。
+
+# 镜 3 · 摘要长什么样 —— 把压缩出来的那段文字打印出来看
+        它把"原 HO1251→改 HO1252、会议号 881204、原周日改周六晚"都留住了 → 保住什么，取决于压缩指令点没点名。
+</pre>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">诚实提醒（教师实测，必读）</span>
+    <p>
+      ① 镜 2 是<strong>固定对话回放</strong>（对话脚本写死在文件里），不是让模型临场编——这样才能让三种策略吃到<b>完全一样</b>的对话，把"策略差异"从"回答随机性"里剥出来。
+      ② 只跑了 6 轮，所以三招的 token 差只有一两百，量级很小——机制是让你看懂的；<b>真正的差距要几十轮才拉开</b>（挑战 B 自己量）。
+      ③ 镜 1 的"北京呢"能接上、镜 2 的摘要能否保住某字段，都是模型行为的抽样，可能因换模型/换提示词而变——但<b>"事实在不在输入里"那个 True/False 是确定性的</b>，它才是本课的根。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 15 分钟）· 把 0001 从"答一句就退出"改成真·多轮 REPL</span>
+    <p>打开 <code>code/0001-minimal-agent.py</code>（第 6 课成品态：流式 + SYSTEM_SCOPED + 出口 + 账单仪表盘都在）。把 <strong>从 <code># --- 3) 对话历史从这里开始 ---</code> 到文件末尾</strong>整段替换成下面这段（上面 MODEL/价格/工具/SYSTEM 一行不动）：</p>
+<pre># --- 3) 对话历史从这里开始（★ 多轮版） ---
+# 只改两处：(1) 每轮把模型答复【记回 messages】(2) 外层循环读输入（REPL）
+messages = []          # 记录层：一问一答的纯文本（成对），工具往返不常驻
+
+def answer(user_text: str):
+    """处理用户一句话。agentic loop 在局部 working 跑完；结束只把问/答文本写回 messages。"""
+    working = list(messages) + [{"role": "user", "content": user_text}]
+    while True:
+        with client.messages.stream(model=MODEL, max_tokens=4096, tools=TOOLS,
+                                    messages=working, system=SYSTEM_SCOPED) as s:
+            for chunk in s.text_stream:            # 逐字蹦（第 5 课）
+                print(chunk, end="", flush=True)
+            response = s.get_final_message()
+            u = response.usage
+            print(f"\n[账单] 本轮 input={u.input_tokens} 命中缓存={u.cache_read_input_tokens or 0} "
+                  f"output={u.output_tokens}  ≈ {u.input_tokens/1e6*INPUT_PRICE_PER_M + u.output_tokens/1e6*OUTPUT_PRICE_PER_M:.4f} 元")
+
+        if response.stop_reason == "tool_use":
+            results, exit_payload = [], None
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                print(f"[工具请求] 模型想调用: {block.name}({block.input})")
+                if block.name == "report_weather":
+                    exit_payload = block.input          # 出口工具：答案在参数里
+                    continue
+                elif block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
+                    output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
+                else:
+                    output = EXEC[block.name](**block.input)
+                results.append({"type": "tool_result", "tool_use_id": block.id, "content": output})
+            if exit_payload is not None:
+                print("✅ 结构化最终输出：", exit_payload)
+                messages.append({"role": "user", "content": user_text})
+                messages.append({"role": "assistant",
+                                 "content": f"{exit_payload['city']} 当前天气：{exit_payload['condition']}"})
+                return
+            working.append({"role": "assistant", "content": response.content})
+            working.append({"role": "user", "content": results})
+            continue
+
+        final = "".join(b.text for b in response.content if b.type == "text")
+        if response.stop_reason != "end_turn":
+            print(f"! 意外停止：{response.stop_reason}")
+        messages.append({"role": "user", "content": user_text})   # ★ 记用户的话
+        messages.append({"role": "assistant", "content": final})  # ★ 记模型的答复——漏了这句就断片
+        return
+
+# --- 4) ★ 真·多轮 REPL ---
+print("多轮天气助手（支持：北京/上海/巴黎/纽约 天气、当前时间；输入 exit 退出）")
+while True:
+    q = input("\n你: ").strip()
+    if q.lower() in ("exit", "quit", "q", "退出"):
+        break
+    if not q:
+        continue
+    answer(q)</pre>
+    <p><strong>观察并回答我：</strong>① 依次问「帮我查一下上海的天气」「那北京呢？」——第二问模型调用了 get_weather(北京)。它怎么知道"呢"指天气的？<strong>因为第一轮还留在 messages 里</strong>：这就是"记住"。② 再问「现在几点了」——看每轮 <code>[账单]</code> 的 input：是不是一轮比一轮大（第 6 课"越聊越贵"在多轮里活过来了）？③ 关键一问：改成多轮后，有一行 <code>messages.append(assistant)</code> 是<b>新加的</b>——把它注释掉再跑第二问，会发生什么？为什么？（提示：模型还看得到第一轮吗？历史还成对吗？）</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 10 分钟）· 亲手量"记忆完整度 = 用 token 买来的"</span>
+    <p>打开 <code>code/0007-memory-context-lab.py</code>，文件里滑动窗口有个常量 <code>KEEP = 2</code>。把它改成 <code>KEEP = 5</code> 再跑一遍，看两件事：</p>
+    <ol>
+      <li>B 策略那两道"最早事实"题是不是从 ❌ 变 ✅ 了？它现在跟 keep-all 差多少？——把窗口开大到能记住最早，prompt 是不是又涨回接近"全留"了？这说明<strong>窗口的"记得住"是用 prompt 尺寸买来的</strong>，跟"全留"殊途同归。</li>
+    </ol>
+    <p><strong>口答（不用写代码）</strong>：镜 2 里滚动摘要比滑动窗口<b>多花一次模型调用</b>，它买到的是什么？滑动窗口只留最近 2 轮，为什么明明更省，你却在真实产品里不敢随便用它？——参考镜 2 的翻车现场：模型把后来改的航班号 HO1252 当成"原定"答了出来。</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"模型是____函数，本身没有记忆。Agent 能'记住'，是因为我每轮把____原样喂回去；它'记得'的边界 = ____。<br>
+    多轮不断链，代码只要求每轮把____和____都 append 进 messages；漏了____那半就会断片。<br>
+    对话太长不可取，三招上下文管理是：____（整段丢最老的）、____（只留最近 N 轮）、____（老的压成一段要点）；<br>
+    它们的共同代价是____；其中滚动摘要还要额外付____（每次压缩一次模型调用），而且____保住多少要看压缩器。<br>
+    想'记得久 + 不无限烧 + 细节不丢'，窗口/摘要都做不到，出路是____（下一课）。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 会说清"记忆存在哪"：模型无状态，短期记忆 = 你喂回去的上下文；长期记忆 = 你存出去再检索（RAG 预告）</li>
+    <li>✅ 能把 0001 改成真·多轮 REPL，并亲手证明"那北京呢"靠历史接上（挑战 A）</li>
+    <li>✅ 会说三招取舍：全留记得全但越聊越贵；窗口封顶最省但整段失忆（还会拿新值顶旧值）；摘要保要义但付压缩费、丢细节</li>
+    <li>✅ 知道裁剪/摘要后模型的答案<b>不可信</b>：真凭实据要么检索找回、要么让它承认无记录</li>
+    <li>✅ M3 记忆与上下文——第一课收官（下一课：检索注入 / RAG 上手）</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents — Anthropic（官方博客）</a><br>
+    精读：把上下文当<b>有限的注意力预算</b>来管理的整体思路；本课三招对应它讲长任务的三板斧里的 <strong>compaction（压缩/摘要）</strong>；
+    它还预告了长期记忆两招——<strong>structured note-taking（把决定写进外部文件、按需读回）</strong> 和 <strong>just-in-time retrieval（用到时再检索进来）</strong>，正是下一课 RAG 的上游思想。</p>
+    <p><a href="https://www.anthropic.com/news/prompting-long-context">Prompting long context — Anthropic（长上下文提示指南）</a><br>
+    本课"context rot"数据的出处：上下文变长、模型找回关键信息的能力下降（<8k 找回 95%+ → 100k 时约三成会漏）。
+    官方给的两个提升找回率的技术（先提取参考引文、再给同文档其它段的 few-shot）与"上下文工程"互为补充。</p>
+    <p class="fn">延伸对照：Anthropic 官方还有一个 Memory tool / 记忆最佳实践页（platform.claude.com → Agents and tools → Memory），讲"模型上下文会随时被重置、重要进展要记到外部持久层"——这是"长期记忆"那一层的高级形态；本课先把"窗口内的记忆管理"地基打好，下一课用检索把它接到外部。OpenAI 侧概念一一对应（无状态 + 历史喂回 + 上下文管理是客户端逻辑，厂商不替你管）。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把三个观察答案发我，我点评你练到了哪一层。也欢迎带着问题回来：上下文里塞的东西越来越多、连三招都不够用的时候，怎么按"相关性"把最该喂的那几段捞进来？（= 下一课 RAG，先把"为什么窗口/摘要做不到"想明白再来。）</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M3 · 检索注入/RAG 上手——embeddings、向量检索、把"最相关几段"喂进上下文（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 7 课 · Agent 开发冲刺课 · M3 · 记忆与上下文 · 第一课。完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

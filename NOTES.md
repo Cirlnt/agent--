@@ -12,7 +12,7 @@
 ## 3 个月冲刺课程路线图（粗略，会随进度修订）
 1. **M1 核心心智模型**：agentic loop、LLM 工具调用、一次调用 vs 循环（已完成：第 1 课，见 learning-records/0002）
 2. **M2 工程地基**：prompt / 结构化输出 / tool calling 实战（Claude+OpenAI 双写）、流式、成本与 token（第 2 课 工具说明书 ✅、第 3 课 结构化输出 ✅、第 4 课 提示词工程（system vs description 分工）✅、第 5 课 流式 ✅、第 6 课 成本与 token ✅交付，均已实证完成回填 → **M2 六块收官 ✅**；第 6 课 KNOWLEDGE ①~⑥ + 实证补记已回填）
-3. **M3 记忆与上下文**：多轮状态、长上下文、向量库与 RAG 基础
+3. **M3 记忆与上下文**：多轮状态、长上下文、向量库与 RAG 基础（第 7 课 多轮状态+上下文管理 已交付 2026-09-07，实证回填待用户完成；下一课 检索注入/RAG 上手）
 4. **M4 手写 vs 框架**：先手写循环，再看 LangGraph / Pydantic AI / OpenAI Agents SDK 如何封装，何时用框架
 5. **M5 连接世界**：MCP、自定义工具、技能（Skills）、多智能体编排
 6. **M6 生产化**：评估（evals）、可观测性、错误处理、部署（FastAPI / Docker）
