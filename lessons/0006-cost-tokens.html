@@ -136,7 +136,9 @@ deepseek-v4-pro     ¥4.5 /百万       ¥0.15 /百万     ¥13.5 /百万  ← �
         <button class="opt" data-correct="false" data-explain="模型每轮都把完整历史重读一遍，usage 报告的是「读了多少」，不会因为命中了缓存就少读内容。缓存改变的是「按什么单价付」，不是「模型看了多少」。">
           <span class="tag">C</span><span>模型这轮只认真看了 100，其余 900 是偷懒没读</span>
         </button>
-        <button class="opt" data-correct="true" data-explain="对。模型实际读的完整 prompt = input_tokens + cache_read_input_tokens = 100 + 900 = 1000。计费时：新增的 100 按全价 input 算，命中的 900 按超便宜的缓存命中价算（DeepSeek flash 低谷 0.05/M ≈ 全价的 1/30）。读 usage 要把这两项加回来看「模型到底读了多少」"></button>
+        <button class="opt" data-correct="true" data-explain="对。模型实际读的完整 prompt = input_tokens + cache_read_input_tokens = 100 + 900 = 1000。计费时：新增的 100 按全价 input 算，命中的 900 按超便宜的缓存命中价算（DeepSeek flash 低谷 0.05/M ≈ 全价的 1/30）。读 usage 要把这两项加回来看「模型到底读了多少」">
+          <span class="tag">D</span><span>这次实际读了 1000 个输入 token：新增的 100 按全价、命中的 900 按便宜的缓存命中价算</span>
+        </button>
       </div>
     </div>
 

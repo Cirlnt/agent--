@@ -245,4 +245,57 @@ Agent = **一个在循环里自主决定调用工具干活的大模型**（Anthr
 
 ---
 
-*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅ ｜ 第 3 课（M2）✅ ｜ 第 4 课（M2）✅ ｜ 第 5 课（M2）✅（2026-09-06 流式实证 + 用户挑战 A/B 完成回填）。完成新课请按顶部模板追加一节。*
+## 第 6 课 · 越聊越贵：把每次调用算成账（成本与 token）· M2（收官）
+
+### ① 一句话核心
+Agent 烧钱 = **输出单价高 + 每一轮重读全部历史**。模型是**无状态函数**，每轮都得把【全部历史 + system + 工具说明书】重新发一遍 → 对话越长、每轮 input 越大，**越聊越贵，且贵得越来越快**。把一次调用拆成 input / output 分开计价（output 通常贵很多）、用 max_tokens 封顶单次输出的最坏账单、让每轮不变的前缀命中缓存降重复读的单价、再每轮读 usage 记账，才算"把 Agent 算成账"。
+
+### ② 心智模型
+- 一次 usage 最少看两个数：**input / output 分开计价，output 比 input 贵很多**（本端点 flash 低谷 in ¥1.5/M vs out ¥4.5/M，输出 3 倍）；缓存命中时还有 `cache_read_input_tokens`。
+- **最大的坑：每一轮模型都把整段历史从头重读一遍**——不是你只把"这一轮新增的话"发过去，连工具往返都重读：第 1 次 get_weather 之后你把 tool_use 记录 + tool_result 塞进 messages，第 2 次调用把整段（含这段）从头重读。
+- **读 usage 的正确口径（本课 decisive）**：在自动缓存端点上 `input_tokens` 报的是"缓存未命中、按全价算的新增部分"，不是完整 prompt；**完整 prompt = input_tokens + cache_read_input_tokens**。只盯 input_tokens（被缓存压得又小又平）会误以为"每轮没在重读历史 / 越聊不越贵"。
+- 缓存原理：把**每轮都不变的前缀**（system + 工具说明书 + 长指令）存起来，下一轮命中就按超便宜的命中价算。但**缓存砍的是"重复读的单价"，砍不掉"每一轮都在读一遍"这件事本身**——新增对话（未命中部分）永远全价，随对话变长只多不少。
+- max_tokens 是**单次输出的封顶**（最坏输出账单的上限），不是省钱开关：① input 那一头照旧全算（历史重读一分不少）；② **thinking 与正文共享这个预算**——给太小，thinking 先吃光，你为看不见的字付了钱还得到一次截断。
+- 成本公式：cost = 新增 in×全价 + 命中 in×命中价 + out×单价。换挡（改价格常量）只把账本**线性缩放**，不改"每轮重读历史、对话越长越贵"的结构。
+- **四把扳手**：① 读 usage 记账（看清账本）② max_tokens 封顶最坏输出 ③ 缓存降重复读单价 ④ **别让对话无限长**（截断 / 摘要 / clear）——只有 ④ 砍的是缓存也砍不掉的"对话变长"本身。
+
+### ③ 要点清单
+- [ ] 会读 usage：input / output / cache_read_input_tokens 各是什么；**模型每轮实际读了 = input_tokens + cache_read_input_tokens**，别把 input_tokens 单独当完整 prompt。
+- [ ] 越聊越贵的机制链：无状态函数 → 每轮重读全部历史 → 对话越长每轮 input 越大 → 成本只涨不跌（镜 2 实测完整历史 445 → 553 → 667，每问 +100 左右）。
+- [ ] **一个问题内部的多次调用也在涨**：一次"上海天气"≥2 次模型调用（先 get_weather 再 report_weather 收尾），第 2 次重读了第 1 次往返 → Agent 账单 = 循环内每次调用 input 的加总。"一个问题内部往返"与"对话被拉长"烧的是同一机制：**每多一次调用，就多一次整段重读**。
+- [ ] max_tokens 是"单次输出账单的封顶"，不是省钱开关；thinking 与正文共享预算，给太小 = 白付钱 + 正文截断甚至 0 字可见。
+- [ ] 自动缓存命中是"尽力而为"：同一前缀第一次出现时 cache_read 为 0（还没跑热），第二次起才可能命中；别把某次 cache_read=0 当成"端点不支持缓存"。
+- [ ] 缓存省的是重复读的**单价**，砍不掉新增（未命中）与"对话变长"本身；只盯 input_tokens 会误以为越聊不越贵。
+- [ ] 会算账：用 cost = in×单价 + out×单价 把真实 token 换成人民币，能估一个月量级（镜 4：一场 3 问对话 ≈0.66 分 vs 自动缓存 ≈0.22 分；放大 100 用户×30 问/天×30 天 ≈199 元/月 vs ≈66 元/月）。
+- [ ] 明确知道砍"对话变长"的是第 4 把扳手（截断 / 摘要 / clear），**不是缓存**。
+
+### ④ 实测发现（DeepSeek v4-flash / Anthropic 兼容端点；教师预跑 2026-09-06 + 用户实证补记见文末）
+- usage 在该端点是自动缓存口径：同一请求发两次，第二次 `input_tokens=18 + cache_read_input_tokens=384 = 402`，与首跑 402 吻合 → input_tokens 只报未命中新增，重复前缀进 cache_read（DeepSeek 原生"自动上下文缓存"透传到 Anthropic 兼容端点的 usage）。命中"尽力而为"、跨脚本同前缀也命中。
+- `count_tokens(messages)` 在该端点可用且返回全量（与 input+cache_read 相等，404=404），是**不受缓存干扰、看完整 prompt 到底多大**的官方真值。
+- decisive 实验（看完整历史涨而非只看 input_tokens）：445 → 553 → 667 只涨不跌；cache_read 384 → 512 → 640 越滚越大（自动缓存吃掉重复前缀）；新增 in 一直很小。同问内第 2 次调用更大（工具往返被重读）。
+- max_tokens 截断 + thinking 共享预算实锤：300 字散文 max_tokens=32 → usage.out=32、stop=max_tokens、可见正文 **0 个字**（thinking 吃光预算，为 32 个输出 token 付钱却一字不见）；max_tokens=2048 → end_turn、357 字。
+- 成本换算（flash 低谷价：in ¥1.5/M、命中 ¥0.05/M、out ¥4.5/M）：镜 2 那场 3 问对话（新增 in 503、命中 3072、out 286，完整等效 3575）——不缓存 ≈0.66 分 vs 自动缓存 ≈0.22 分（省约 2/3）；放大 100 用户×30 问/天×30 天 → 不缓存 ≈199 元/月 vs 自动缓存 ≈66 元/月（量级感）。**缓存省的是重复读的单价，full 曲线照涨**——正好点破"缓存 ≠ 停止增长"。
+- 显式 cache_control 探针：system 块发 `cache_control={"type":"ephemeral"}` **不报 400**，但 cache_creation/cache_read 不因其点亮 → 该端点缓存是自动的、cache_control 不"手动控制"。诚实口径：别假设 cache_control 一定生效，靠读 usage 确认。
+- **实证补记（用户完成挑战 A/B + 收束自释，2026-09-07，code/0001 + code/0006-cost-lab.py）**：
+  - 挑战 A（给 0001 装账单仪表盘）：0001 落点核对通过——只加两个价格常量 + `s.get_final_message()` 后一行账单打印，流式循环与 agent 逻辑一行未动，第 5 课成品态保持。观察①②③ 定性都对（一次"上海天气"内第 2 次调用 input 更大）；追问补点破：多出来的是"第 1 次调用后塞进 messages 的 tool_use 记录 + tool_result，第 2 次整段重读把它读进来"；"一个问题内部往返"与"对话被拉长"是同一个计数器在涨（每多一次调用就多一次整段重读，账单 = 循环内每次调用 input 的加总）。
+  - 挑战 B：② 换高峰价后镜 2 曲线没变、③ clear（第 4 把扳手）砍的是缓存也砍不掉的"对话变长"——都对；**① 未重跑，理由"换挡必翻倍、跑它没信息量"——认可为看穿题眼**（价格只是把账本线性缩放 ×2：≈199→≈398、≈66→≈132，结构不随价格变）。
+  - 收束自释逐空判卷：核心机制全对（usage 最小读法 / 无状态函数 / max_tokens 共享预算 / clear 扳手），两处修回课件口径——完整 input 要说字段名 `input_tokens + cache_read_input_tokens`（不是"新的+过去缓存前缀"）；缓存只把重复前缀的**单价**打折（别把"单价"说成"缓存"）；"只盯 input_tokens 误以为"的方向是"每轮没在重读历史 / 越聊不越贵"，不是"价格变低"。
+  - 价格基准（2026-09-06 查证）：DeepSeek 2026-08-17 起峰谷分时计价、2026-08-23 起周末全天低谷价；flash 低谷 in ¥1.5/M、命中 ¥0.05/M、out ¥4.5/M，高峰翻倍（3.0 / 0.10 / 9.0）。课件与脚本均标"以官方为准、价格会变"。
+
+### ⑤ 工程陷阱与面试追问
+- 面试题「为什么 Agent 越聊越贵？」→ 先答"每一轮重读全部历史"这一层（无状态函数，历史越攒越长、每轮 input 只涨不跌），再答缓存——比只背价格表高一档。
+- 面试题「把 input_tokens 当完整 prompt 对不对？」→ 不对：自动缓存端点上它是"未命中新增"，完整 prompt = input_tokens + cache_read_input_tokens；只盯它得出"越聊不越贵"是错结论。
+- 陷阱① "把 max_tokens 当省钱旋钮"：它只封顶单次输出账单；input 那头的历史重读一分不少，thinking 还与正文共享预算（给太小 = 白付钱 + 截断）。
+- 陷阱② "以为用了自动缓存，成本就不再随对话变长而涨"：缓存只把重复前缀的单价从全价打到命中价，新增对话永远全价、随变长只多不少 → 成本曲线照涨，只是斜率变缓。
+- 陷阱③ "以为发 cache_control 就一定生效"：该端点缓存是自动的、cache_control 不"手动控制"；判断标准是读 usage 里 cache_read / cache_creation 亮没亮。
+- 面试加分：把"四把扳手"按作用说全——记账 / 封顶输出 / 缓存降单价 / **别让对话无限长**；只有第四把砍的是缓存也砍不掉的"对话变长"。
+- 预留钩子：对话多长该"截断 / 摘要 / 归档"才划算（M3 记忆与上下文的入口）；缓存命中率怎么在生产里监控（M6 可观测性）。
+
+### ⑥ 术语·厂商对照·原典
+- 术语：usage / input_tokens / output_tokens / cache_read_input_tokens / cache_creation_input_tokens / count_tokens / max_tokens / prompt caching（自动上下文缓存）/ 缓存命中价 / stop_reason / end_turn
+- 厂商对照：Anthropic **显式** cache_control（`cache_control: {"type":"ephemeral"}` 标缓存点）vs DeepSeek **自动**上下文缓存（免配置，usage 自动出 cache_read，cache_control 不手动控制）；OpenAI 概念一一对应（usage 字段命名不同）。结构规律每家都一样：输出比输入贵、缓存命中比未命中便宜、强模型比弱模型贵。
+- 原典（必读）：Claude 官方 **Counting & displaying token usage** 文档（usage 字段与 counting tokens 段——本课 input / cache_read / count_tokens 全来自这一页，能默画 usage 结构就是真懂）；**Pricing** 与 **Prompt caching** 官方页（platform.claude.com）。延伸对照：DeepSeek 官方定价与自动上下文缓存说明（platform.deepseek.com → 文档）；OpenAI 的 token 计费 / prompt caching 对应页。
+
+---
+
+*本文件已积累：第 1 课（M1）✅ ｜ 第 2 课（M2）✅ ｜ 第 3 课（M2）✅ ｜ 第 4 课（M2）✅ ｜ 第 5 课（M2）✅ ｜ 第 6 课（M2 收官）✅（2026-09-07 成本实证 + 用户挑战 A/B 完成回填）。M2 工程地基六块全部收官，完成新课请按顶部模板追加一节。*

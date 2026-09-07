@@ -16,6 +16,9 @@ MODEL = "deepseek-v4-flash"
 
 client = anthropic.Anthropic()   # 自动读 ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN
 
+INPUT_PRICE_PER_M  = 1.5    # 元 / 百万 tokens：deepseek-v4-flash 低谷价（缓存未命中输入）
+OUTPUT_PRICE_PER_M = 4.5    # 元 / 百万 tokens：deepseek-v4-flash 低谷价（输出）
+
 SUPPORTED = ["北京", "上海", "巴黎", "纽约"]
 
 # --- 1) 工具的真实执行代码：在你这里，不在模型那里 ---
@@ -86,6 +89,10 @@ while True:
         for chunk in s.text_stream:            # 给用户看的字逐字打出来（thinking/参数不会混进来）
             print(chunk, end="", flush=True)
         response = s.get_final_message()       # 与非流式 response 同形状，下面代码全不用改
+
+        u = response.usage
+        print(f"\n[账单] 本轮 input={u.input_tokens} 命中缓存={u.cache_read_input_tokens or 0} "
+            f"output={u.output_tokens}  ≈ {u.input_tokens/1e6*INPUT_PRICE_PER_M + u.output_tokens/1e6*OUTPUT_PRICE_PER_M:.4f} 元")
 
     # 情况一：模型想调工具 -> 执行它，把结果喂回去，继续循环
     if response.stop_reason == "tool_use":
