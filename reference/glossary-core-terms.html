@@ -139,6 +139,42 @@
     </ul>
   </div>
 
+  <div class="ref-group">
+    <h2>检索与向量（RAG 底座）</h2>
+    <ul class="gloss">
+      <li>
+        <span class="en">Embedding / embedding model<span class="alt">词向量 / 向量化模型</span></span>
+        <span class="zh">把文字映射成"数字向量"</span>
+        <span class="def">把一段文字变成一个数字向量（一串浮点数，如 512 维）；语义越接近的文字，向量离得越近。embedding 模型是"另一类模型"，输出向量不是文字。铁律：向量只在自己这个 embedding 模型内可比，别拿两家模型的向量互算相似度。DeepSeek/Anthropic 官方不内置（Anthropic 推荐 Voyage 等伙伴）；OpenAI 有 text-embedding-3-*。</span>
+      </li>
+      <li>
+        <span class="en">Cosine similarity<span class="alt">余弦相似度</span></span>
+        <span class="zh">比向量"方向像不像"</span>
+        <span class="def">衡量两个向量接近程度的常用指标，取值越接近 1 越相似。语义检索的"检索"环节就是：把问题向量跟库里每个块的向量比余弦，取最高的 top-k。</span>
+      </li>
+      <li>
+        <span class="en">Chunk / chunking<span class="alt">切块 / 分块</span></span>
+        <span class="zh">检索的"最小单位"</span>
+        <span class="def">把长文档切成一个个自洽、够小的段落再分别向量化。块太大颗粒粗、夹带噪音；太小断语境（Anthropic Contextual Retrieval 就是给块补上下文前缀来解决）。</span>
+      </li>
+      <li>
+        <span class="en">Vector store<span class="alt">向量库 / 向量数据库</span></span>
+        <span class="zh">不过是一张"表 + 最近邻检索"</span>
+        <span class="def">最小实现 = (块文本, 向量) 的表 + 余弦排序取 top-k。Chroma / FAISS / pgvector 优化的是快（亿条不线性扫）、能持久、亿级规模。别把它当神秘组件。</span>
+      </li>
+      <li>
+        <span class="en">Top-k retrieval / nearest neighbor<span class="alt">top-k 检索 / 最近邻</span></span>
+        <span class="zh">取最像的前 k 个</span>
+        <span class="def">检索时取相似度最高的前 k 块原文注入 prompt。k 太小答案块可能没进 top；太大噪音灌入 + token 涨 + 稀释注意力。k 是 RAG 里第一颗要调的旋钮。</span>
+      </li>
+      <li>
+        <span class="en">BM25<span class="alt">字面/词频检索算法</span></span>
+        <span class="zh">关键词那一档的"正规军"</span>
+        <span class="def">基于词频的经典检索算法，擅长精确串（错误码、编号）；embedding 擅长"换说法"的语义近似。两者互补，Anthropic 建议 hybrid（双轨合流）再用 rerank 精排。本课镜 2 的朴素 2-gram 关键词是它这一档的最小代表。</span>
+      </li>
+    </ul>
+  </div>
+
   <div class="callout warn">
     <span class="t">用词纪律</span>
     <p>课件里只使用本表术语。比如：不要用"Function Call"与"Tool Use"混着叫却不说清是同一件事；讲"循环"用 <em>agentic loop</em>；讲路径预编好用 <em>workflow</em>，别把 workflow 也叫成 agent。</p>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 8 课 · RAG 上手：把"最相关几段"喂进上下文</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 8 课 · 模块 M3 · 记忆与上下文 · <strong>第二课</strong></div>
+  <h1 class="lesson-title">RAG 上手：把"最相关几段"喂进上下文<br>（检索注入 · embeddings · 向量检索）</h1>
+  <p class="lesson-sub">第 7 课把话说死了：想让 Agent "记得久 + 不无限烧 + 细节不丢"，窗口/摘要都做不到，出路是——<strong>把资料存到外面，每轮只把最相关的几段检索进来喂</strong>。今天就用一套真能跑、零花费的最小 RAG 把这句话变成代码：切块、embedding、向量检索、top-k 注入。顺便点破一个幻觉：模型能答它没背过的公司政策，<strong>不是它记住了，是你在开考前先帮它翻了书</strong>。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 90–120 分钟</span>
+    <span class="chip">需要：第 7 课环境 + 本课自带的本地 bge 模型（免下载、免联网）</span>
+    <span class="chip">花费：¥0 向量 + 几分钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官爱问一句：<em>"你们公司有个新政策，上线当天就有人来问——模型没训练过，怎么答得上来？"</em>
+    新手会说"那就把文档喂给模型 / 换个更强的模型"。老手会纠正方向：<strong>不是训练、也不是换模型——是 RAG</strong>：
+    在回答之前，先从资料库里把"答案所在的那几段"检索出来，塞进这一次的上下文，让模型<strong>开卷作答</strong>。
+    上一课你已经为这句话的"为什么"铺了路；本课把"怎么做"做出来，并亲手量它到底值在哪。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：RAG 是"先翻书、再答卷"的两段式</h2>
+
+  <h3>拆两半，别神化：先检索，再增强生成</h3>
+  <p>
+    RAG = Retrieval-Augmented Generation，翻译过来就是<strong>检索增强生成</strong>，两个半场：
+  </p>
+  <ul>
+    <li><strong>检索（retrieval）</strong>：模型没见过你的资料 → 由你（应用层）先到资料库里，把和当前问题最相关的几段原文找出来。第 7 课里那层"外部记忆"就从这里被捞回来。</li>
+    <li><strong>增强生成（augmented generation）</strong>：把这「几段原文 + 问题」一起发给模型。模型还是那个无状态函数（第 6/7 课立的），它做的事没变——变的只是<strong>这次请求里多了几段精选原文</strong>。</li>
+  </ul>
+  <div class="callout info">
+    <span class="t">一句话定义（面试先答这句）</span>
+    <p><strong>RAG = 先把资料切成块、算好向量；提问时把问题也变向量，挑出最接近的几块原文塞进 prompt，再让模型只依据这些原文作答。</strong>
+    模型没换、也没背你的资料；RAG 改的是"这次喂了什么"。</p>
+  </div>
+
+  <h3>一套最小 RAG 就五步（手写给你看）</h3>
+  <pre>① 切块 chunking     手册 → 切成 8 个主题自洽的段落（每块是一个独立小主题，含具体规则/数字）
+② 每块算向量 embed   每个块过一遍 embedding 模型 → 变成一个 512 维数字向量
+③ 建索引 index       8 个 (文本, 向量) 存成一张表  ← 这就是"向量库"的全部真身
+④ 检索 retrieval     用户提问 → 问题也变向量 → 和 8 个向量比相似度 → 取最像的 top-k 块（k=3）
+⑤ 注入 augmented     把这 top-k 块的【原文】拼进 prompt：参考资料 + 问题 → 模型只依据资料作答</pre>
+  <p>
+    <strong>第①步决定"检索的粒度"，第④步的 k 决定"喂多少"</strong>——这两处是后面要亲手调的两颗旋钮。
+    全流程里，真正"聪明"的只有第②④步里的 embedding 和相似度；其余都是搬砖。
+  </p>
+
+  <h3>embedding：把"语义"翻译成"几何"</h3>
+  <p>
+    检索凭什么知道哪段相关？关键词不够——同事问"出差报销多少一晚"和你手册里写的"出差住宿报销：一线每晚上限 600 元"，
+    一个字都对不上。所以要用<strong>语义</strong>检索：embedding 模型把一段文字映射成一个<strong>向量</strong>（一串数字，本课 512 维）。
+    语义越接近的两段文字，它们的向量在空间里就离得越近。于是"找最相关"变成"找向量最近邻"，比较的距离叫<strong>余弦相似度</strong>（cosine，越接近 1 越像）。
+  </p>
+  <div class="callout danger">
+    <span class="t">铁律：向量只在自己这个 embedding 模型里可比</span>
+    <p>
+      <strong>别拿两家 embedding 模型算出的向量互比相似度</strong>——每个模型有自己的一套"坐标系"，
+      拿 bge 的向量跟 OpenAI text-embedding-3 的向量算余弦，就像拿公里数比斤两。凡是跟你强调"embedding 可比"的，先说清是在同一个模型内。
+    </p>
+  </div>
+  <p>
+    还有一个新手必混的点：<strong>embedding 模型不是对话模型</strong>——它输出的是数字向量，不是文字。
+    所以做 RAG 天然是"两家组装"：对话走 DeepSeek/Claude，向量走另一个来源。
+    顺便交个底：<strong>DeepSeek 官方 API 至今没有 embeddings 端点</strong>（2026 实测，404）；Anthropic 官方也不提供向量化（官方最佳实践用 Voyage 等伙伴模型）。
+    本课向量来源 = <strong>本地 bge 小模型</strong>（BAAI/bge-small-zh-v1.5，ONNX CPU 跑）→ 零账号、零费用、断网可重跑。你后面在生产里会换成云端的 embed 服务，接口概念完全一样。
+  </p>
+
+  <h3>"向量库"不神秘：一张表 + 排序</h3>
+  <p>
+    你可能听过 Chroma / FAISS / pgvector……它们叫"向量数据库"。但最小实现就长这样：
+  </p>
+<pre>index = { "C01": 向量(年假),  "C02": 向量(出差住宿),  "C03": 向量(市内交通),  … }   # 一张 (块,向量) 表
+
+def search(query, k=3):
+    qv = embed(query)                                  # 问题也变向量
+    对每一块算 cosine(qv, 该块向量)                    # 比相似度
+    排序取前 k 名 → 返回那 k 块的【原文】               # 最近邻
+    </pre>
+  <p>
+    生产向量库优化的是三件事：<strong>更快</strong>（亿条里检索不线性扫）、<strong>能持久</strong>（存磁盘/分布式）、<strong>更多功能</strong>（过滤、元数据）。
+    本课先用一张 Python 字典 + 8 个向量，把"原理"和"表"看透，比上来就背数据库 API 值得。
+  </p>
+
+  <div class="callout info">
+    <span class="t">本课语料：虚构「云杉科技员工手册」（模型绝不可能背过）</span>
+    <p>为了让"检索才答得出"是<strong>决定性的</strong>，语料选一份模型从没见过的虚构公司内部手册，切成 8 个主题段落：</p>
+    <table style="width:100%;border-collapse:collapse;margin:.4rem 0">
+      <thead><tr style="border-bottom:2px solid var(--rule);text-align:left">
+        <th style="padding:.3rem .5rem">块</th><th style="padding:.3rem .5rem">主题</th>
+        <th style="padding:.3rem .5rem">一段里藏着的事实（判定用）</th></tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C01</td><td style="padding:.3rem .5rem">年假</td><td style="padding:.3rem .5rem">满 1/3/5 年各 10/15/20 天，结转最多 5 天</td></tr>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C02</td><td style="padding:.3rem .5rem">出差住宿报销</td><td style="padding:.3rem .5rem">一线 600/晚，二线及以下 400/晚，48h 补票据</td></tr>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C03</td><td style="padding:.3rem .5rem">市内交通报销</td><td style="padding:.3rem .5rem">打车限 22 点后/恶劣天气</td></tr>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C04</td><td style="padding:.3rem .5rem">补充商业医疗险</td><td style="padding:.3rem .5rem">门诊报 80%、上限 5000、住院报 90%</td></tr>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C05</td><td style="padding:.3rem .5rem">开放 API 限流</td><td style="padding:.3rem .5rem">120 次/分，429，15 分钟为 P0</td></tr>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C06</td><td style="padding:.3rem .5rem">发布窗口</td><td style="padding:.3rem .5rem">周四 20–22 点；紧急修复须 CTO 书面批准 + 24h 复盘会</td></tr>
+        <tr style="border-bottom:1px solid var(--rule)"><td style="padding:.3rem .5rem">C07</td><td style="padding:.3rem .5rem">账号安全</td><td style="padding:.3rem .5rem">全员 2FA、密码 90 天轮换</td></tr>
+        <tr><td style="padding:.3rem .5rem">C08</td><td style="padding:.3rem .5rem">远程办公</td><td style="padding:.3rem .5rem">周三远程日、提前一天登记</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>为什么不全塞整本？——又贵，又会稀释注意力</h3>
+  <p>
+    有人会问：干脆把 8 块全发给模型不就行了？两个理由不这么做：
+  </p>
+  <ul>
+    <li><strong>贵</strong>：每道题都拖全文，等于把一本书每次重印一遍（第 6 课的账；本课镜 3 用 count_tokens 实测：全量 ≈ 591 token，只喂 top-3 ≈ 318）。</li>
+    <li><strong>稀释注意力</strong>：第 7 课引过 Anthropic 的实测——上下文越长，模型找回关键信息的能力越差（context rot / lost in the middle）。塞得越多，你要的那句越容易被淹没。</li>
+  </ul>
+  <p>
+    检索注入 = <strong>只喂"相关那几页"，而不是整本书</strong>。这正是 Anthropic《上下文工程》里 <strong>read selective（只读相关）</strong> 这一条的落地。
+  </p>
+
+  <h3>RAG 跟第 7 课的窗口/摘要，各管哪一段？</h3>
+  <p>
+    容易混，分清楚就值回票价：
+  </p>
+  <table style="width:100%;border-collapse:collapse;margin:.8rem 0">
+    <thead><tr style="border-bottom:2px solid var(--rule);text-align:left">
+      <th style="padding:.4rem .6rem">工具</th><th style="padding:.4rem .6rem">管的是</th><th style="padding:.4rem .6rem">对付的</th></tr></thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--rule)">
+        <td style="padding:.4rem .6rem">第 7 课：窗口 / 摘要</td>
+        <td style="padding:.4rem .6rem"><strong>对话历史</strong>（短期记忆：我们上几轮聊过什么）</td>
+        <td style="padding:.4rem .6rem">输入太长、装不下、越聊越贵</td></tr>
+      <tr>
+        <td style="padding:.4rem .6rem">本课：RAG / 检索注入</td>
+        <td style="padding:.4rem .6rem"><strong>外部知识</strong>（长期记忆：公司政策/文档，模型没背过）</td>
+        <td style="padding:.4rem .6rem">模型"不知道"却必须答对的内容</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <span class="t">诚实提醒：RAG 的上限 = 检索那一环；检索断了，模型会"连引用一起编"</span>
+    <p>
+      检索没把对的那页送进来，后面给多强的模型都白搭——本课镜 1/镜 2 会用翻车现场证明：<strong>模型没资料时不是老实说"不知道"，而是自信地编</strong>，
+      甚至假装引用了手册里根本不存在的条款。生产里你要做两件事兜底：① 提示词写明"只依据参考资料、资料里没有就说没有"（软）；② 用 eval 盯住它有没有在材料外编（硬，往后 M6 讲）。
+      还有个反直觉点：公司越小、资料越少（几万字以内），<strong>直接全文塞 + 提示词缓存</strong> 可能比上 RAG 更简单划算——Anthropic 官方都这么建议（见第 5 节必读）。RAG 不是越用越高级，是"资料大到塞不下/常更新"时才出手。
+    </p>
+  </div>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">模型从没背过你们公司的新报销政策，却能答对"出差去上海住一晚报多少"。它答对的核心机制是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="RAG 不是训练：不会为一条新政策去重新训练/微调模型（贵、慢、还容易把旧知识冲掉）。">A · 公司把政策重新训练进了模型的权重里</button>
+        <button class="opt" data-correct="true" data-explain="对。提问前，你的代码先把手册切成块、算好向量，检索出『答案所在那一块』原文，和问题一起发给模型。模型不是记住了，是开卷照抄。">B · 提问前检索出"答案所在那几段"原文塞进本次 prompt，让模型开卷作答</button>
+        <button class="opt" data-correct="false" data-explain="换更强模型也白搭：更强不等于『知道你们公司的 600 元上限』。模型没背过就是没背过，喂到上下文里才算数。">C · 换一个更大的模型，它自然就懂公司规则</button>
+        <button class="opt" data-correct="false" data-explain="那是『工具实时查库』，是另一条路。RAG 的两段式是：先离线把资料向量化索引好，提问时检索原文注入 prompt——不靠给模型开系统接口。">D · 给模型开了公司内部系统的实时读取接口</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">同事问"骑车摔伤去诊所，那份额外医疗险能报多少比例"——它跟手册里的"补充商业医疗险"几乎没有一个字对得上。语义检索靠什么捞到那一块？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="那是『关键词/字面检索』这一档（本课用字符 2-gram 当它的代表）。换一种说法就断了——这正是镜 2 要演给你看的事。">A · 数问题与每个块重复了多少字符，重复越多越相关</button>
+        <button class="opt" data-correct="true" data-explain="对。embedding 模型把问题和每个块都变成一个向量；语义越接近、向量离得越近（余弦相似度高）。『换个说法』在语义上仍是同一件事 → 向量仍挨得近。">B · 把问题和每个块都变成向量，比余弦相似度，越接近越相关</button>
+        <button class="opt" data-correct="false" data-explain="让对话模型逐段打分？那就退化回把整本手册塞给模型读一遍——贵且绕。embedding 是专门的廉价向量模型，一次算出几何坐标。">C · 让对话模型把每个块都读一遍、逐段打分</button>
+        <button class="opt" data-correct="false" data-explain="跟文档位置无关：检索看的是语义相似度，不是『前后挨着』。C04 医疗险在文档中间，跟问题措辞毫无位置关系也照样该被捞到。">D · 找段落里离问题最近的那一块</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">既然 RAG 检索也要花钱，为什么不干脆把整本手册全塞进 prompt 省事？最站得住的理由是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="反了：全塞比只喂 top-k 贵好几倍（本课实测同题：全量 591 token vs top-3 318 token），而且越塞越难找。">A · 全塞虽然贵一倍，但模型会"记得更牢"，值得</button>
+        <button class="opt" data-correct="false" data-explain="恰恰相反：上下文越长，模型对关键信息的注意力越差（context rot，第 7 课引过数据），『塞得多』会稀释而不是增强。">B · 塞得越多，模型越容易命中你要的那句</button>
+        <button class="opt" data-correct="true" data-explain="对。两个理由：① 每道题都拖全文 = 又贵又每轮重读（第 6 课账）；② 上下文过长导致 context rot——你要的那句反而被淹没。检索注入只送『相关那几页』，是 read selective 的落地。">C · 又贵、又会因上下文过长稀释对关键信息的注意力；只喂相关几页就够答对</button>
+        <button class="opt" data-correct="false" data-explain="没有『人类可读性』这回事，模型不在乎排版；真正的代价是 token 钱和注意力稀释。">D · 整本塞进去人类读起来太累</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">镜 2 里，同一道"医疗险"的题，关键词打分从照原话问的 0.62 掉到换说法后的 0.11（低于命中下限、判没检索到），而 embedding 余弦只从 0.77 微微降到 0.67 仍稳稳捞对。这个对照说明——</p>
+      <div class="opts">
+        <button class="opt" data-correct="true" data-explain="对。关键词检索只认字面：你照着手册原话问它好使，一换说法就打回原形；embedding 把『意思』变成向量，换个说法意思没变 → 照样捞对。这就是『语义检索』存在的意义。">A · 关键词检索"照原话问"够用，一换说法就断；embedding 靠语义把"换说法"兜住</button>
+        <button class="opt" data-correct="false" data-explain="数字摆着呢：语义余弦 0.77 → 0.67，没断，仍然命中 C04。断的是关键词那一路。">B · 换说法后语义检索也跟着断了，两个都不行</button>
+        <button class="opt" data-correct="false" data-explain="它只认字面、容易被换说法击败，但『照原话问』时 0.62 高命中——不是永远没用。别把镜 2 读成『关键词一无是处』。">C · 关键词检索从来就没用，可以删掉</button>
+        <button class="opt" data-correct="false" data-explain="embedding 也会捞错（语义邻近 ≠ 同主题），真实系统还要 rerank/eval 兜底。这一题的考点是『换说法』，不是『永不犯错』。">D · embedding 检索永远零失误</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">镜 1 最值得警惕的发现是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="恰恰相反：闭卷时模型没有老实说不知道，而是编了一整套 4 步假流程，还主动问要不要帮拟模板。">A · 模型很诚实，资料没给就老实承认不知道</button>
+        <button class="opt" data-correct="true" data-explain="对。模型没资料时会自信地编造——闭卷能编出整套『两级审批/抄送技术 VP』流程；检索=空时甚至敢假装引用手册里根本不存在的条款。这就是为什么检索环节必须可靠、还要用 eval 盯。">B · 资料没送进来时，模型会自信地编造，甚至假引不存在的条款</button>
+        <button class="opt" data-correct="false" data-explain="它可一点不笨：编的流程有板有眼、还带编号——问题不是模型笨，是『没材料时生成会补编』这个本性。">C · 模型太笨，连像样的流程都编不出来</button>
+        <button class="opt" data-correct="false" data-explain="检索返回越多 ≠ 越好：全量塞 8 块 token 是 top-3 的近两倍、还稀释注意力。喂『刚好够』的 top-k 才是 RAG 的工程点。">D · 塞给模型的资料越多，答案就越可靠</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：三镜看"检索注入" + 给 0001 挂一把"查手册"工具（约 40 分钟）</h2>
+  <p>核心思想：<strong>别听我说教，看实测。</strong>三镜把"闭卷会编 / 开卷照抄 / 换说法谁兜得住 / 喂多少 token"各演一遍。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境</span>
+    <p>
+      沿用第 1–7 课同一个 venv、让终端看得到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>（忘了翻第 1 课第 3 步）。
+      <strong>本课不用再装任何东西</strong>：embedding 库 <code>fastembed</code> 已装好，本地模型已随课放在 <code>agent-lab/models/bge-small-zh-v1.5</code>（git 忽略）。首次跑若提示找不到模型，照文件末尾"附录"重放一次即可。
+    </p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 跑三镜实验，全程一条命令</span>
+    <p>文件已写好：<code>D:\agent学习\code\0008-rag-lab.py</code>。跑它：</p>
+<pre>python code/0008-rag-lab.py</pre>
+    <p>三镜各盯一个东西（下面是我教师预跑的一次真实输出；模型回答属于抽样、可小幅浮动，<strong>但检索命中与打分是确定性的</strong>）：</p>
+<pre><span class="c"># 镜 1 · ★ 检索注入才答得出：闭卷会编，开卷照抄（题=紧急发版，真值只在 C06：须经 CTO 书面批准 + 24h 内补复盘会）</span>
+A 零注入（闭卷）  喂入=132 token → 模型凭空编出 4 步假流程：两级审批/拉群确认/次日补变更记录/抄送技术 VP（还问要不要拟模板）
+                  → 含『CTO』False ｜ 含『复盘』False  ← 公司特有规则，编不出来
+B 注入 top-1 C06 喂入=213 token → "须先经 CTO 书面批准 + 发布后 24 小时内补开复盘会"
+                  → 含『CTO』True ｜ 含『复盘』True  ← 决定性：资料送对了，照抄
+C 把 8 块全塞    喂入=591 token → 也能答对，但 token 是 B 的近 3 倍
+         盯：模型没换、没背书——A 答不出是这次请求里没有那段原文；B 答对是检索把它送了进来。
+
+# 镜 2 · ★ 关键词 vs 语义：同一件事（医疗险）换一种说法就分高下
+题A 照原话问      关键词 top-1 C04 重合度 0.619 ✅ 命中 ｜ 语义 0.770 ✅
+题B 换说法问      关键词 top-1 C04 只有 0.107 ❌ 低于下限 0.15 → 判"没检索到那一页"
+                 语义   top-1 C04 0.665 ✅ 稳稳捞对
+         盯：关键词 0.62 → 0.11 断了；语义 0.77 → 0.67 几乎没动。
+把两路检索结果喂给模型（题B）：
+   关键词路（检索=空）→ 模型答不出 80%，反而编了一段"工伤认定"理论、假引手册里不存在的条款 → 含『80』False
+   语义路  （送 C04） → "门诊费用报销 80%、上限 5000 元" → 含『80』True  ← 决定性
+         盯：检索没送对页，生成再强也白搭，而且它会连引用一起编。
+
+# 镜 3 · 偷看内部 + 算账
+语义 top-1 全命中：Q1→C06 0.700 ｜ Q2→C04 0.665 ｜ Q3→C05 0.763
+token 账：Q1 164/318/591 ｜ Q2 169/336/596 ｜ Q3 149/324/576  （零注入 → 注入 top-3 → 全量 8 块）
+         盯：送"答案所在页+邻页"约 +150 token；全量再 +约 270，还稀释注意力。</pre>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">诚实提醒（教师实测，必读）</span>
+    <p>
+      ① <strong>判定口径</strong>：每道题都标了"应命中的块"（ground truth），脚本打印的是检索 top-1 命没命中、关键词打分过没过下限——这些是<strong>确定性</strong>的；
+      模型的回答只是佐证，它的<strong>具体措辞会因换模型/换提示词而变</strong>（比如闭卷时它编的假流程每次版本不同，但"编不出 CTO/复盘"这件事是稳的）。
+      ② 关键词那一路加了个<strong>命中下限 0.15</strong>：真实检索器都用分数下限把"没把握的命中"滤掉，防拿噪音当答案——这是工程常规，不是本课专属。
+      ③ 你看到的 token 数会因 DeepSeek 对同一文本切词稳定而基本一致；模型回答的字数则影响 output，本课不比 output。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 20 分钟）· 给 0001 的多轮助手挂一把"查手册"工具</span>
+    <p>
+      打开 <code>code/0001-minimal-agent.py</code>（第 7 课成品态：真·多轮 REPL + 流式 + 出口 + 账单都在）。
+      给它加一把 <code>search_manual</code> 工具，让它成为<strong>会查公司手册的 Agent</strong>。三处小改：
+    </p>
+    <ol>
+      <li><strong>TOOLS 里加一项</strong>：name=<code>search_manual</code>，description 写明"查询云杉科技员工手册里的公司政策/报销/医疗/发布窗口等规则；员工问这类问题先调它"；参数一个 <code>query</code>（string，员工的问题原文或关键词）。</li>
+      <li><strong>EXEC 里加实现</strong>：从 0008 搬一个最小版进来——把 <code>query</code> 转向量、在 8 块里取 top-2、返回命中的原文拼接。<strong>要搬四样：</strong>① <code>CHUNKS</code> 表（整表照抄）；② embedding 模型加载那两行（<code>MODEL_DIR</code> + <code>emb = TextEmbedding(...)</code>，不搬会报"没模型"）；③ <code>search_semantic</code> 函数（它已返回 <code>(余弦, 块号, 原文)</code> 的 top-k 列表，正好直接用）；④ 注释掉 0008 里的打印/问答部分（那是实验脚本用的）。然后 <code>EXEC["search_manual"] = lambda q: "\n".join(f"[{c}]\n{t}" for _, c, t in search_semantic(q, k=2))</code>——返回的字符串就是给模型的 <code>tool_result</code>。</li>
+      <li><strong>system 里加一句章程</strong>：公司政策/手册类问题，先调 <code>search_manual</code> 拿到材料再回答；<strong>只依据材料、材料没有就说手册里没有，不要编</strong>。</li>
+    </ol>
+    <p><strong>自检对话</strong>：问「我下周出差去上海，住酒店一晚公司最多能报销多少？」→ 期望它先打出一行 <code>[工具请求] … search_manual(...)</code>，然后复述出 <strong>600</strong> 元；再问一个手册里没有的（比如「公司下午茶标准是多少」）→ 期望它答"手册资料里没有"，而不是编一个数。<br>
+    <strong>观察并回答我：</strong>① RAG 的结果落在 <code>tool_result</code> 里，被当成普通文本送回去——这是不是正好印证了第 7 课"记录层只存文本、模型只看文本"的约定？② 第二次问手册没有的内容时，如果它还是编了，你会怎么改 system 把边界钉死？</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 10 分钟）· 量 top_k 的取舍 + 口答</span>
+    <p>
+      打开 <code>code/0008-rag-lab.py</code>，文件顶部有个模块级常量 <code>TOP_K = 3</code>（镜 3 的检索与 token 账都用它）。
+      把它改成 <code>1</code> 跑一遍镜 3，再看改成 <code>8</code>（= 全部块，即"全量塞"的另一种写法）跑一遍：
+    </p>
+    <ol>
+      <li><code>TOP_K = 1</code>：每道题只送 1 块——token 最省，但看 top-3 那栏：正确答案那块还在 top-1 吗？如果某题答案在 top-2/top-3 而被切掉，模型会怎样？（答不出/开始编）</li>
+      <li><code>TOP_K = 8</code>：等于全量塞——token 涨回 ~590，跟"为什么不全塞"对着看。</li>
+    </ol>
+    <p><strong>口答（不用写代码，想清楚再说给我听）</strong>：
+    ① top_k 太小 / 太大的风险各是什么（提示：太小→正确答案那块没进 top→答不出或编；太大→噪音灌入 + token 涨 + 稀释注意力）；
+    ② 用一句话解释"向量库不神秘"；
+    ③ 第 7 课的窗口/摘要管的是对话历史、本课 RAG 管的是外部知识——两者"分工"的一句话怎么说？</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"RAG = ____（retrieval）增强 ____（generation）。真正答话的还是那个____，RAG 改的是这次____。<br>
+    一套最小 RAG 五步：____ → ____ → ____ → ____ → 把 top-k 原文拼进 ____ 让模型作答。<br>
+    embedding 把____变成____，比较用____相似度；铁律是向量只在____里可比。<br>
+    '向量库'不神秘，最小实现就是一张____ + ____排序；生产库优化的是快、持久、亿级。<br>
+    为什么不全塞：____ + ____（context rot）。第 7 课窗口/摘要管____，本课 RAG 管____。<br>
+    检索质量决定 RAG 上限；检索=空时模型会____，连____都敢编，所以要靠____兜底。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 能一句话说清 RAG 两段式 + 五步流水线，并讲清"模型没背书也能答对"的机制</li>
+    <li>✅ 亲手跑通最小 RAG：本地 bge embedding ¥0 离线建索引 → top-k 检索 → 注入作答</li>
+    <li>✅ 用决定性证据说明：闭卷会编（编 4 步假流程）、关键词换说法会断（0.62→0.11）、embedding 靠语义兜住（0.77→0.67）</li>
+    <li>✅ 会给 0001 挂 <code>search_manual</code> 工具，把"查手册"变成 Agent 的一把工具（挑战 A）</li>
+    <li>✅ 会说清"为什么不全塞"与 top_k 的取舍（挑战 B）</li>
+    <li>✅ M3 记忆与上下文——第二课收官</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents — Anthropic（官方博客）</a><br>
+    精读 <strong>read selective（只读相关）</strong>一节：把上下文当有限预算、只读"相关那几页"——本课检索注入就是它的落地。
+    第 7 课你已读全书（write long / read selective / divide &amp; conquer / summarize），今天把它接上工程。</p>
+    <p><a href="https://www.anthropic.com/engineering/contextual-retrieval">Introducing Contextual Retrieval — Anthropic（官方博客）</a><br>
+    RAG 检索质量的官方工程范式：切块会丢上下文（一块孤立的"门诊报销 80%"不知道在说哪家、哪年）→ 给每块加一句"上下文前缀"再向量化，检索失败率可降近一半；
+    还强调 embedding 会漏精确串（如错误码 TS-999），所以要跟 <strong>BM25（字面/词频检索）双轨合流</strong>——本课镜 2 的"关键词(2-gram) 对照"正是 BM25/字面这一档的最小代表，你已亲眼看过它俩互补不互斥。</p>
+    <p><a href="https://developers.openai.com/api/docs/guides/embeddings">Text embeddings — OpenAI（官方文档）</a><br>
+    "embedding = 把文字映射成向量、距离近 = 语义近"这一概念的出处。对照看：OpenAI 有 <code>text-embedding-3-small/large</code>（对话走 GPT、向量走 embed，同为"两家组装"）；DeepSeek/Anthropic 官方都不内置 embedding（Anthropic 官方推荐 Voyage 等伙伴模型）。本课本地 bge 小模型扮演的正是 text-embedding-3-small 的"角色"。</p>
+    <p class="fn">延伸对照：Anthropic 官方在 Contextual Retrieval 里也提醒——资料库很小（&lt;20 万 token，约 500 页内）时，配提示词缓存直接全文塞可能更简单划算，别为上 RAG 而上 RAG。OpenAI 官方 blog 有《Introducing text and code embeddings》与 vector store 相关文档可互参。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把观察答案发我，我点评你练到了哪一层。下一课预告：M3 第三课会把它工程化——真正的向量库（Chroma/FAISS）、切块策略、rerank，以及"检索质量怎么评估"（eval 的第一次真正上手）。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <span class="next">下一课预告：M3 · 向量库与检索工程化——Chroma/FAISS、切块与 rerank、检索 eval（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">第 8 课 · Agent 开发冲刺课 · M3 · 记忆与上下文 · 第二课。完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

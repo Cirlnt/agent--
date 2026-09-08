@@ -36,7 +36,7 @@
     <div class="stat"><div class="k">使命</div><div class="v"><a href="MISSION.md">MISSION.md</a></div></div>
     <div class="stat"><div class="k">资源库</div><div class="v"><a href="RESOURCES.md">RESOURCES.md</a></div></div>
     <div class="stat"><div class="k">术语表</div><div class="v"><a href="reference/glossary-core-terms.html">glossary-core-terms.html</a></div></div>
-    <div class="stat"><div class="k">进度</div><div class="v">第 7 课 <small>（M3 · 记忆与上下文 · 第一课）</small></div></div>
+    <div class="stat"><div class="k">进度</div><div class="v">第 8 课 <small>（M3 · 记忆与上下文 · 第二课）</small></div></div>
   </div>
 
   <div class="module">
@@ -97,17 +97,25 @@
 
   <div class="module">
     <h3><span class="m">M3</span>记忆与上下文</h3>
-    <a class="card now" href="lessons/0007-memory-context.html">
+    <a class="card" href="lessons/0007-memory-context.html">
       <span class="t">第 7 课 · Agent 怎么记得住：多轮状态与上下文管理（M3 · 第一课）</span>
       <span class="d">模型无状态，记忆=你喂回去的历史 → 把 0001 改成真·多轮 REPL（"那北京呢"靠历史接上）→ 对话太长三招管：全留(越聊越贵)/滑动窗口(整段失忆)/滚动摘要(保要义付压缩费)</span>
     </a>
-    <a class="card now" href="lessons/0007-memory-context.html#hands-on">
+    <a class="card" href="lessons/0007-memory-context.html#hands-on">
       <span class="t">动手文件</span>
       <span class="d">code/0007-memory-context-lab.py 已就绪（三镜：无状态实锤 / 三招管长对话 decisive / 摘要长啥样）+ 挑战 A/B（0001 多轮 REPL + 调窗口大小量 tradeoff）</span>
     </a>
+    <a class="card now" href="lessons/0008-rag-intro.html">
+      <span class="t">第 8 课 · RAG 上手：把"最相关几段"喂进上下文（M3 · 第二课）</span>
+      <span class="d">模型没背过也能答对？不是记住了，是开考前翻了书 → 五步最小 RAG：切块/embedding/索引/top-k 检索/注入（本地 bge ¥0 离线）→ 实测：闭卷会编、关键词换说法会断、embedding 兜住"换个说法"</span>
+    </a>
+    <a class="card now" href="lessons/0008-rag-intro.html#hands-on">
+      <span class="t">动手文件</span>
+      <span class="d">code/0008-rag-lab.py 已就绪（三镜：闭卷vs开卷 / 关键词vs语义 decisive / top-3 与 token 账）+ 挑战 A/B（给 0001 挂 search_manual 工具 + 调 TOP_K 量取舍）</span>
+    </a>
   </div>
 
-  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。M2 工程地基六块已收官，M3（记忆与上下文）第 7 课已发布——本课之后还有检索注入/RAG、向量库。此页会随课程增长自动扩展。</p>
+  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。M2 工程地基六块已收官，M3（记忆与上下文）第 7、8 课已发布（多轮/摘要 → RAG 上手），下一课向量库与检索工程化。此页会随课程增长自动扩展。</p>
 </div>
 </body>
 </html>
