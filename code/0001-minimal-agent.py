@@ -76,55 +76,60 @@ SYSTEM_SCOPED = (
 
 EXEC = {"get_weather": get_weather, "get_current_time": get_current_time}   # 名字 -> 真实函数
 
-# --- 3) 对话历史从这里开始 ---
-messages = [{"role": "user", "content": "帮我查一下上海现在的天气"}]
+# --- 3) 对话历史从这里开始（★ 多轮版） ---
+# 只改两处：(1) 每轮把模型答复【记回 messages】(2) 外层循环读输入（REPL）
+messages = []          # 记录层：一问一答的纯文本（成对），工具往返不常驻
 
-# --- 4) ★ agentic loop：循环到模型给出最终文字答案为止 ---
-while True:
-    # response = client.messages.create(
-    #     model=MODEL, max_tokens=4096, tools=TOOLS, messages=messages, system=SYSTEM_SCOPED
-    # )
-    with client.messages.stream(model=MODEL, max_tokens=4096, tools=TOOLS,
-                            messages=messages, system=SYSTEM_SCOPED) as s:
-        for chunk in s.text_stream:            # 给用户看的字逐字打出来（thinking/参数不会混进来）
-            print(chunk, end="", flush=True)
-        response = s.get_final_message()       # 与非流式 response 同形状，下面代码全不用改
+def answer(user_text: str):
+    """处理用户一句话。agentic loop 在局部 working 跑完；结束只把问/答文本写回 messages。"""
+    working = list(messages) + [{"role": "user", "content": user_text}]
+    while True:
+        with client.messages.stream(model=MODEL, max_tokens=4096, tools=TOOLS,
+                                    messages=working, system=SYSTEM_SCOPED) as s:
+            for chunk in s.text_stream:            # 逐字蹦（第 5 课）
+                print(chunk, end="", flush=True)
+            response = s.get_final_message()
+            u = response.usage
+            print(f"\n[账单] 本轮 input={u.input_tokens} 命中缓存={u.cache_read_input_tokens or 0} "
+                  f"output={u.output_tokens}  ≈ {u.input_tokens/1e6*INPUT_PRICE_PER_M + u.output_tokens/1e6*OUTPUT_PRICE_PER_M:.4f} 元")
 
-        u = response.usage
-        print(f"\n[账单] 本轮 input={u.input_tokens} 命中缓存={u.cache_read_input_tokens or 0} "
-            f"output={u.output_tokens}  ≈ {u.input_tokens/1e6*INPUT_PRICE_PER_M + u.output_tokens/1e6*OUTPUT_PRICE_PER_M:.4f} 元")
-
-    # 情况一：模型想调工具 -> 执行它，把结果喂回去，继续循环
-    if response.stop_reason == "tool_use":
-        messages.append({"role": "assistant", "content": response.content})
-        results = []
-        exit_payload = None
-        for block in response.content:
-            if block.type == "tool_use":
+        if response.stop_reason == "tool_use":
+            results, exit_payload = [], None
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
                 print(f"[工具请求] 模型想调用: {block.name}({block.input})")
                 if block.name == "report_weather":
-                    exit_payload = block.input     # 出口工具：数据在参数里，不用"执行"它
+                    exit_payload = block.input          # 出口工具：答案在参数里
                     continue
                 elif block.name == "get_weather" and block.input.get("city") not in SUPPORTED:
                     output = f"错误：暂不支持城市 {block.input.get('city')}。支持：{SUPPORTED}"
                 else:
                     output = EXEC[block.name](**block.input)
-                results.append({"type": "tool_result",
-                            "tool_use_id": block.id,   # id 必须对上
-                            "content": output})
-        if exit_payload is not None:
-            print("✅ 结构化最终输出：", exit_payload)
-            break   # 继续循环，模型会看到 report_weather 的结果，然后结束
-        else:
-            messages.append({"role": "user", "content": results})
+                results.append({"type": "tool_result", "tool_use_id": block.id, "content": output})
+            if exit_payload is not None:
+                print("✅ 结构化最终输出：", exit_payload)
+                messages.append({"role": "user", "content": user_text})
+                messages.append({"role": "assistant",
+                                 "content": f"{exit_payload['city']} 当前天气：{exit_payload['condition']}"})
+                return
+            working.append({"role": "assistant", "content": response.content})
+            working.append({"role": "user", "content": results})
             continue
 
-    # 情况二：模型给最终文字答案 -> 输出并结束
-    if response.stop_reason == "end_turn":
-        final = next(b.text for b in response.content if b.type == "text")
-        # print("最终答案:", final)
-        break
+        final = "".join(b.text for b in response.content if b.type == "text")
+        if response.stop_reason != "end_turn":
+            print(f"! 意外停止：{response.stop_reason}")
+        messages.append({"role": "user", "content": user_text})   # ★ 记用户的话
+        messages.append({"role": "assistant", "content": final})  # ★ 记模型的答复——漏了这句就断片
+        return
 
-    # 其它停止原因（截断/拒答等）——后续课程专门处理
-    print(f"! 意外停止：{response.stop_reason}")
-    break
+# --- 4) ★ 真·多轮 REPL ---
+print("多轮天气助手（支持：北京/上海/巴黎/纽约 天气、当前时间；输入 exit 退出）")
+while True:
+    q = input("\n你: ").strip()
+    if q.lower() in ("exit", "quit", "q", "退出"):
+        break
+    if not q:
+        continue
+    answer(q)

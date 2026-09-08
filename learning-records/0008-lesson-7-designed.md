@@ -52,12 +52,7 @@
 - 概念层面：多轮状态 / context window / 上下文管理是**客户端逻辑**，Claude / OpenAI / DeepSeek 全一样（都是你维护 messages、每轮整段重发）；厂商差异只在"窗口上限多大 / 输出单价 / 有无自动缓存"（第 6 课已对照）。
 - 原典（写入课件必读区，URL 交付前核实）：Anthropic **Effective context engineering for AI agents**（把上下文当稀缺资源、四个策略：write long/read selective/divide&conquer/summarize——本课"三招"= 它的工程化子集）；Anthropic **Memory** 官方页（短期=上下文窗口 vs 长期=外部存储的两分法）。
 
-## 待办（用户实证后回填）
-
-- 用户跑通 lab 三镜 + 挑战 A/B，核对 0001 多轮 REPL 是否既保留第 5/6 课成品态又真的能跨轮记住；口头复盘逐条判卷。
-- KNOWLEDGE.md 追加第 7 课 ①~⑥ + 实证补记；尾标推进到"第 7 课（M3）✅"。
-- NOTES.md：M3 项从"未开始"标到"第 7 课交付、实证待回填"。
-- index.html 交付时即推（第 7 课 now + M3 卡片）。
+## 待办（已随文末"实证收尾"完成，见下）
 
 ## 教师预跑取证（2026-09-07，DeepSeek v4-flash / Anthropic 兼容端点，code/0007 已预跑三镜全绿）
 
@@ -71,12 +66,13 @@
 - **挑战 A 片段已亲手验证**（head 0001 + 新 tail 拼装、脚本化三问跑通）：上海(exit report)→"那北京呢？"正确解析 →现在几点(end_turn)，messages 收尾成对、无悬空 tool_use、无 400。片段要点：历史只存一问一答文本、agentic loop 在局部 working 跑、exit_payload 那路把结构化答案以文本记回历史（防未闭合 tool_use 留档导致下一问 400）——这些暗坑在课件注释里都点破。
 - **原典 URL 已核实**：Anthropic《Effective context engineering for AI agents》（anthropic.com/engineering/…）+《Prompting long context》（anthropic.com/news/…，context rot 数据出处）。
 
-## 待办（用户实证后回填，见下）
+## ✅ 实证收尾（2026-09-08）
 
-- 用户跑通 code/0007 三镜 + 挑战 A/B，核对 0001 多轮 REPL（既保留第 5/6 课成品态又真跨轮记住、挑战 A③ 注释掉 append 后"断片"观察）与挑战 B（KEEP 调大后 ❌→✅ 且 prompt 涨回近全留）的口头复盘。
-- KNOWLEDGE.md 追加第 7 课 ①~⑥ + 实证补记；尾标推进到"第 7 课（M3）✅"。
-- NOTES.md M3 标注从"已交付待回填"改"✅"。
-- learning-records 本文件标记完成。
+- 用户完成 code/0007 三镜 + 挑战 A/B；挑战 A 的 0001 多轮 REPL 改动在工作区（既保留第 5/6 课成品态又真跨轮记住）。
+- 收束自释（自我解释练习）判卷完成：核心全对，修回/补点三处（截断 truncation 术语漏名、"原样喂回"限裸多轮、补两层记忆分法）——逐条判卷已回填 KNOWLEDGE 第 7 课实证补记。
+- KNOWLEDGE.md 已追加第 7 课 ①~⑥ + 实证补记，尾标推进到"第 7 课（M3）✅"。
+- NOTES.md M3 项已改"✅ 已实证收束"。
+- 本文件标记完成。
 
 ---
-*本记录 = 设计稿 + 交付 + 教师预跑取证已就绪；用户实证回填后标完成。*
+*本记录 = 设计稿 + 交付 + 教师预跑取证 + 用户实证收尾，已完成。*
