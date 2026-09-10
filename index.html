@@ -36,7 +36,7 @@
     <div class="stat"><div class="k">使命</div><div class="v"><a href="MISSION.md">MISSION.md</a></div></div>
     <div class="stat"><div class="k">资源库</div><div class="v"><a href="RESOURCES.md">RESOURCES.md</a></div></div>
     <div class="stat"><div class="k">术语表</div><div class="v"><a href="reference/glossary-core-terms.html">glossary-core-terms.html</a></div></div>
-    <div class="stat"><div class="k">进度</div><div class="v">第 8 课 <small>（M3 · 记忆与上下文 · 第二课）</small></div></div>
+    <div class="stat"><div class="k">进度</div><div class="v">第 9 课 <small>（M3 · 记忆与上下文 · 第三课）</small></div></div>
   </div>
 
   <div class="module">
@@ -105,17 +105,37 @@
       <span class="t">动手文件</span>
       <span class="d">code/0007-memory-context-lab.py 已就绪（三镜：无状态实锤 / 三招管长对话 decisive / 摘要长啥样）+ 挑战 A/B（0001 多轮 REPL + 调窗口大小量 tradeoff）</span>
     </a>
-    <a class="card now" href="lessons/0008-rag-intro.html">
+    <a class="card" href="lessons/0008-rag-intro.html">
       <span class="t">第 8 课 · RAG 上手：把"最相关几段"喂进上下文（M3 · 第二课）</span>
       <span class="d">模型没背过也能答对？不是记住了，是开考前翻了书 → 五步最小 RAG：切块/embedding/索引/top-k 检索/注入（本地 bge ¥0 离线）→ 实测：闭卷会编、关键词换说法会断、embedding 兜住"换个说法"</span>
     </a>
-    <a class="card now" href="lessons/0008-rag-intro.html#hands-on">
+    <a class="card" href="lessons/0008-rag-intro.html#hands-on">
       <span class="t">动手文件</span>
       <span class="d">code/0008-rag-lab.py 已就绪（三镜：闭卷vs开卷 / 关键词vs语义 decisive / top-3 与 token 账）+ 挑战 A/B（给 0001 挂 search_manual 工具 + 调 TOP_K 量取舍）</span>
     </a>
+    <a class="card now" href="lessons/0009-retrieval-eval.html">
+      <span class="t">第 9 课 · 给 RAG 装一把尺子：检索评估（M3 · 第三课）· eval 首次上手</span>
+      <span class="d">没有尺子只有"变化"，没有"改进" → 22 题评估集 + Hit@1/Hit@k/Recall@k/MRR 四指标 → 量四路检索器（关键词 0.73 / 语义 0.91 / 混合 0.91 / 语义加权 0.95）→ 阈值按正负样本分布标定（上一课那个 0.6 误杀三成）→ 追问改写让 Hit@1 从 2/5 到 5/5</span>
+    </a>
+    <a class="card now" href="lessons/0009-retrieval-eval.html#hands-on">
+      <span class="t">动手文件</span>
+      <span class="d">code/0009-eval-lab.py 已就绪（四镜：评估台四路对比 / 阈值分布标定 / query 自足性 / top_k 扫描）+ 挑战 A/B（给尺子加刻度 + 用 eval 回头标定 0001 的 search_manual 并加查询改写）</span>
+    </a>
   </div>
 
-  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。M2 工程地基六块已收官，M3（记忆与上下文）第 7、8 课已发布（多轮/摘要 → RAG 上手），下一课向量库与检索工程化。此页会随课程增长自动扩展。</p>
+  <div class="module">
+    <h3><span class="m">复习</span>M2 + M3 复盘日（不是新课）</h3>
+    <a class="card" href="reference/m2-m3-review.html">
+      <span class="t">复习日 · 先自测 → 带问题重读原典 → 压成速查卡</span>
+      <span class="d">卷 A 概念自测 20 题（交错出题、不标课号，做完才知道考的是第几课）+ 卷 B 数字默写 12 题（先默写再点开对答案）→ 错题映射表：塌方在哪几课 → 读哪篇原典的哪一节 → 3 篇硬原典带读问题（合上原文说得出口才算过）+ 九课一页速查卡</span>
+    </a>
+    <a class="card" href="reference/m2-m3-review.html#cheatsheet">
+      <span class="t">九课速查卡 · 单独入口</span>
+      <span class="d">每课"一句话核心 + 必须记住的数/判据"一表打尽，外加面试视角六问（"你怎么知道你的 RAG 是好的？"）；验收标准：能凭记忆复述 8 课以上</span>
+    </a>
+  </div>
+
+  <p class="fn" style="margin-top:2.5rem">模块路线见 <a href="NOTES.md">NOTES.md</a>；已核实的高可信外部资源见 <a href="RESOURCES.md">RESOURCES.md</a>。M2 工程地基六块已收官，M3（记忆与上下文）第 7、8、9 课已发布（多轮/摘要 → RAG 上手 → 检索评估 eval），M3 三课收官；M4 开始前先用掉 <a href="reference/m2-m3-review.html">M2+M3 复盘日</a>。此页会随课程增长自动扩展。</p>
 </div>
 </body>
 </html>

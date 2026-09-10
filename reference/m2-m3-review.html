@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>复习日 · M2 + M3 复盘（先自测 → 带问题重读 → 压成速查卡）</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+  /* 本页独有的小样式：默写题的可折叠答案 + 时间表 */
+  details.ans { background: var(--card); border: 1px solid var(--rule); border-left: 4px solid var(--good);
+                border-radius: 8px; padding: .5rem .9rem; margin: .4rem 0 1.2rem; }
+  details.ans summary { cursor: pointer; font-size: .88rem; color: var(--ink-soft); }
+  details.ans[open] summary { margin-bottom: .4rem; }
+  .timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: .7rem; margin: 1rem 0; }
+  .timeline .slot { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: .7rem .9rem; }
+  .timeline .slot .h { font-size: .78rem; color: var(--muted); letter-spacing: .05em; }
+  .timeline .slot .t { font-weight: 700; margin: .15rem 0 .3rem; }
+  .timeline .slot .d { font-size: .9rem; color: var(--ink-soft); }
+  table.cheat { width: 100%; border-collapse: collapse; margin: .8rem 0; font-size: .93rem; }
+  table.cheat th, table.cheat td { padding: .4rem .55rem; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  table.cheat thead th { border-bottom: 2px solid var(--rule); }
+  .qtag { font-size: .82rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="lesson">
+
+  <div class="lesson-kicker">复习日 · 不是新课 · 覆盖 M2 工程地基（第 2–6 课）+ M3 记忆与上下文（第 7–9 课）</div>
+  <h1 class="lesson-title">M2 + M3 复盘日<br>（先自测 → 带问题重读原典 → 压成一页速查卡）</h1>
+  <p class="lesson-sub">
+    九课下来，你已经把 agentic loop、工具说明书、结构化输出、提示词分工、流式、成本、多轮记忆、RAG、检索评估都亲手做了一遍。
+    但<strong>从来没有回头把跨课的东西混在一起考过自己</strong>。今天这一天就是补这一刀：
+    先用两卷自测<strong>定位漏洞</strong>，再<strong>带着问题</strong>重读被打中的那几篇原典，最后把所有东西<strong>压成一页能一直翻的速查卡</strong>。
+  </p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">一整天（约 4–5 小时，可拆成 3 块）</span>
+    <span class="chip">花费：¥0（本页不调模型）</span>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">先讲清楚一件事：为什么不是"把九课重读一遍"</span>
+    <p>
+      <strong>重读是复习里性价比最低的动作。</strong>因为读的时候你会产生一种"我都懂"的流畅感（fluency illusion），合上书却什么也调不出来——那是<em>认得出</em>，不是<em>想得起</em>。
+      真正把知识钉进长期记忆的是<strong>检索练习</strong>：先逼自己从脑子里往外掏（哪怕掏错了），再看答案。
+      所以今天的顺序是<strong>测 → 读 → 压</strong>：让泄漏出来的漏洞<strong>点名</strong>你该重读哪一篇、哪一节，而不是从头再刷一遍。
+    </p>
+  </div>
+
+  <h2 id="how">0 · 这一天怎么用</h2>
+  <div class="timeline">
+    <div class="slot">
+      <div class="h">第 1 块 · 约 50 分钟</div>
+      <div class="t">卷 A：概念自测（20 题）</div>
+      <div class="d">交错出题、<strong>不按课分组</strong>，题目里也不告诉你考哪一课。做完再翻反馈——每题都会告诉你"考的是第几课"。</div>
+    </div>
+    <div class="slot">
+      <div class="h">第 2 块 · 约 60 分钟</div>
+      <div class="t">卷 B：数字默写（12 题）</div>
+      <div class="d">这些是本课路上用真金白银量出来的数。默写不出来 = 你当时看的是"热闹"。写完点开对答案。</div>
+    </div>
+    <div class="slot">
+      <div class="h">第 3 块 · 约 2–3 小时</div>
+      <div class="t">带问题重读 3 篇原典 + 压速查卡</div>
+      <div class="d">按"错题落在哪几课"决定精读顺序（对照第 3 节的映射表）。读完合上原典，用第 5 节的速查卡验收自己。</div>
+    </div>
+  </div>
+  <p>
+    最后把错题抄到第 6 节那张"错题本"里——<strong>那张纸才是你今天真正的产出</strong>。以后每次 M4/M5 开新模块前，花 10 分钟只看那张纸。
+  </p>
+
+  <h2 id="paper-a">1 · 卷 A · 概念自测</h2>
+  <p>交错出题：下面 20 题混着 M2/M3 的内容，顺序故意打乱，也不标课号。<strong>先全部答完再回头逐题读反馈</strong>，然后把"错在哪几课"记下来。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">1 · 一个"Agent"比"一次普通 API 调用"多出来的，就是哪三样东西？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 1 课】记忆并不来自模型内部：模型是无状态函数，Agent 的「记忆」是你每轮把历史喂回去。三样里没有「模型自己的记忆」。">A · 更大的上下文窗口、更强的模型、内置记忆</button>
+        <button class="opt" data-correct="true" data-explain="【第 1 课】Anthropic 的原话是 an LLM using tools to perform a task in a loop。比一次调用多的就是：工具清单（tools）+ 可续历史（messages）+ 循环（stop_reason 那一圈）。">B · 工具清单、可续的对话历史、以及跑循环的那圈代码</button>
+        <button class="opt" data-correct="false" data-explain="【第 1 课】微调不是 Agent 的组成要件——M1 讲的就是「先用原生 API 手写一个循环」，跟训练无关。">C · 针对任务微调过的权重、插件市场、调度器</button>
+        <button class="opt" data-correct="false" data-explain="【第 1 课】向量库是第 8/9 课才引入的一件可选工具，不是 Agent 的定义成分。">D · 向量数据库、缓存层、以及重试机制</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">2 · 模型对一个工具的"全部了解"来自哪里？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 2 课】函数体它一个字都看不到——你写的实现、docstring、注释、日志，模型都看不到。">A · 你写的那个函数的函数体和 docstring</button>
+        <button class="opt" data-correct="true" data-explain="【第 2 课】只有三样：name + description + input_schema。想让它「调得准、传得对」，雕的是这三处，不是换更聪明的模型。">B · TOOLS 里那一个字典的三个字段：name、description、input_schema</button>
+        <button class="opt" data-correct="false" data-explain="【第 2 课】system 管的是「整台 Agent 的章程」，不是某个工具的参数细节；工具的参数细节必须写进那个工具自己的 schema。">C · system prompt 里对全部工具的总体描述</button>
+        <button class="opt" data-correct="false" data-explain="【第 2 课】模型不会去「读你的代码」。它只见说明书——这正是第 2 课三镜演给你看的东西（同一函数换三种说明书，行为完全不同）。">D · 运行时它自己读一遍你的源码</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">3 · 一条新规矩该写进 system 还是某个工具的 description？判据是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 4 课】长短不是判据。很长的全局章程照样写 system，很短的工具参数说明照样写 schema。">A · 看这条规矩有多长，长的进 system</button>
+        <button class="opt" data-correct="true" data-explain="【第 4 课】判据是「它管多大范围」：只管一个工具该不该被调、参数怎么填 → 写那个工具的 description/schema；管整台 Agent 的身份、边界、跨工具取舍 → 写 system。">B · 看它管一个工具，还是管整台 Agent：前者进 description，后者进 system</button>
+        <button class="opt" data-correct="false" data-explain="【第 4 课】两处都写会造成冲突和冗余，不是「保险」。该由哪一层负责就写在哪一层，另一个地方不重复。">C · 重要的规矩两处都写一遍，双保险</button>
+        <button class="opt" data-correct="false" data-explain="【第 4 课】system 与 description 是分工，不是替代。第 4 课实测：不写 system 的 Agent 会悄悄从「查库存助手」扩成「通用助手」——description 自守拦不住这种域外扩权。">D · 全部写进 description 就行，system 可有可无</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">4 · 想让模型稳定交出结构化数据（比如固定字段的 JSON），最稳的姿势是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 3 课】「只输出 JSON、不要加解释」这种是软约束：模型大部分时候守规矩，但一破例你就得打补丁，像打地鼠。">A · 在提示词里强调「只输出 JSON，不要任何多余文字」</button>
+        <button class="opt" data-correct="true" data-explain="【第 3 课】工具即输出：定义一个「输出工具」，让模型用 tool_use 把答案交回来——你从 block.input 拿到的天生是 dict，还被 input_schema（required / enum / 类型）约束。tool_use 本来就是免费的结构化输出。">B · 定义一个「输出工具」，让模型用 tool_use 交回来，取 block.input</button>
+        <button class="opt" data-correct="false" data-explain="【第 3 课】把 JSON 当字符串嵌在 tool_result 里，等于把解析问题原样搬了个地方，没有拿到任何强约束。">C · 让模型把 JSON 字符串塞进工具参数里，你再解析一次</button>
+        <button class="opt" data-correct="false" data-explain="【第 3 课】让模型自检「我这段 JSON 合法吗」是又贵又不稳的做法；强约束应该来自 schema，不是来自它自查。">D · 生成后让模型自己检查一遍 JSON 合法性</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">5 · 流式输出（streaming）真正改变的是哪一层？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 5 课】模型那边一切照旧：照样「点单（tool_use）+ 说话」，token 照样一个个生成。总时长该是多久还是多久。">A · 它让模型生成得更快，总时长变短</button>
+        <button class="opt" data-correct="true" data-explain="【第 5 课】流式是 I/O / 体验层的开关，不是新的 agent 机制——agentic loop 一行都不用改。用户体感 ≈ TTFT（首字时间），而不是总时长。">B · 它只改 I/O 与体验层：用户从「干等总时长」变成「很快看到第一个字」</button>
+        <button class="opt" data-correct="false" data-explain="【第 5 课】流式不省 token 也不省钱，输入输出该多少还是多少——它买的是「体感」，不是「成本」。">C · 它减少了 token 消耗，所以更便宜</button>
+        <button class="opt" data-correct="false" data-explain="【第 5 课】反直觉实锤：给用户看的那部分文本可以流式，但工具参数是半个半个到的、必须拼完才能解析——所以「工具那一拍」省不掉。">D · 它让工具调用也不必等待，参数能边到边执行</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">6 · 多轮对话为什么「越聊越贵」，而且贵得越来越快？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 6 课】不是模型记性变差，是账变了：模型无状态，每一轮都要把【全部历史 + system + 工具说明书】重新发一遍，历史越长每轮 input 越大。">A · 因为对话越长，模型需要「想」得越久、输出越长</button>
+        <button class="opt" data-correct="true" data-explain="【第 6 课】两件事叠加：① 每轮都要重读全部历史（第 7 课那条「无状态」的账）；② output 的单价通常明显高于 input。实测三轮 445 → 553 → 667 token，一路涨。">B · 模型无状态，每轮都要重发全部历史；而且输出单价通常更贵</button>
+        <button class="opt" data-correct="false" data-explain="【第 6 课】模型每轮都是独立的一次调用，没有「累积状态」这回事——累计的只有你发过去的 messages。">C · 模型内部会累积状态，状态越大算得越慢越贵</button>
+        <button class="opt" data-correct="false" data-explain="【第 6 课】流式与否不影响账单；而且第 6 课明确讲过 max_tokens 是「输出上限」，不是省钱开关。">D · 因为用了流式，每个 token 都单独计费一次</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">7 · 把 max_tokens 调小，是省钱开关吗？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 6 课】它封的是「单次输出的最坏账单」（防跑飞），不是省钱旋钮。真正省钱的杠杆在别处：缩短历史、命中缓存、别让模型啰嗦。">A · 是，调小就按比例省钱</button>
+        <button class="opt" data-correct="true" data-explain="【第 6 课】它是「单次输出的上限」，用来封住最坏账单；调得过小还会把回答截断在半个句子上。注意 thinking 与正文共享这个预算。">B · 不是：它是单次输出的封顶（防最坏账单），调小还可能把回答截断</button>
+        <button class="opt" data-correct="false" data-explain="【第 6 课】它限制的是输出侧，input 账单（每轮重读历史那部分）纹丝不动。">C · 是，它同时减少输入和输出</button>
+        <button class="opt" data-correct="false" data-explain="【第 6 课】thinking 与正文输出共享同一个 max_tokens 预算——预算被 thinking 吃掉，正文就会被截断，这是实测踩过的坑。">D · 不影响输出，因为 thinking 用的是另一个独立预算</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">8 · 提示词缓存（prompt caching）省的是哪一部分的钱？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 6 课】缓存不动输出单价——输出是每次现生成的，缓存不了。">A · 输出的单价</button>
+        <button class="opt" data-correct="true" data-explain="【第 6 课】省的是「重复的前缀被重读」那部分输入。多轮对话里 system + 工具说明书 + 前面几轮历史几乎每轮重复，正好命中缓存。">B · 被重复读取的那段输入前缀（比如 system + 工具说明书 + 老历史）</button>
+        <button class="opt" data-correct="false" data-explain="【第 6 课】缓存是「少收重读的钱」，不是「少读几个 token」——上下文该多长还是多长，注意力该稀释还是稀释。">C · 它缩短了上下文长度，所以表也变小了</button>
+        <button class="opt" data-correct="false" data-explain="【第 6 课】缓存不改变模型回答什么内容；它是计费层的机制，不是生成机制。">D · 它让模型的回答质量更高，所以综合成本更低</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">9 · 多轮 REPL 里，如果你每轮只 append 了 user、忘了 append assistant，会发生什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 7 课】不是「没影响」：模型看不到自己上一轮说过什么，于是会重复、会自相矛盾，甚至直接报错（消息序列不合法）。">A · 没影响，模型自己记得住上一轮说了什么</button>
+        <button class="opt" data-correct="true" data-explain="【第 7 课】模型能「记住」的唯一原因是历史被喂回去。「那北京呢」这类追问之所以接得上，靠的正是上一轮的 assistant 文本还在 messages 里——漏了那半就断片甚至 400。">B · 断片或报错：追问接不上、答案自相矛盾，因为模型看不到自己上一轮说过什么</button>
+        <button class="opt" data-correct="false" data-explain="【第 7 课】不会「自动补全」——模型没有跨调用的记忆，也没有「猜我刚才说了啥」的能力。">C · 模型会自动把缺失的那半补全</button>
+        <button class="opt" data-correct="false" data-explain="【第 7 课】只省了一点 token，代价是对话直接坏掉——这不是取舍，是 bug。">D · 只是省了 token，没有别的副作用</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">10 · 截断、滑动窗口、滚动摘要——这三招的共同点是什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 7 课】它们都不是「记忆」：记忆是外部存储 + 用时检索（第 8 课的 RAG）。这三招只是在「压历史」。">A · 它们都能让 Agent 真正记住过去</button>
+        <button class="opt" data-correct="true" data-explain="【第 7 课】三招都是拿「细节」换「空间/钱」的取舍，不是记忆：截断丢老信息、窗口整段失忆、摘要保要义但要付压缩费且会失真。想「记得久 + 不烧钱 + 细节不丢」，三招都做不到——出路是检索注入。">B · 它们都是「拿细节换空间」的取舍，都会丢信息，都不是真正的记忆</button>
+        <button class="opt" data-correct="false" data-explain="【第 7 课】三者各有代价：摘要并非「无损」，它要额外花一次生成的钱，还可能把你要的细节压没。">C · 摘要是无损压缩，只有另外两招会丢信息</button>
+        <button class="opt" data-correct="false" data-explain="【第 7 课】它们都在「客户端」做——是你写代码处理 messages，跟服务端没关系。">D · 它们都由服务端自动完成，你不需要写代码</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">11 · 第 7 课末尾把结论说死了：想「记得久 + 不无限烧 + 细节不丢」，出路是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 7 课】换更大的窗口只是把墙推远一点，账单照样线性涨、context rot 照样发生——不是出路。">A · 换一个上下文窗口更大的模型</button>
+        <button class="opt" data-correct="true" data-explain="【第 7 课】把资料/历史存到外部，每轮只把最相关的几段检索回来喂进上下文（= 第 8 课的 RAG / read selective）。">B · 存到外部，用时只把最相关的几段检索回来喂进上下文</button>
+        <button class="opt" data-correct="false" data-explain="【第 7 课】微调解决的是「能力」，不是「当下该看哪几段」——每个用户、每轮对话要的资料都不一样。">C · 把公司资料微调进模型权重</button>
+        <button class="opt" data-correct="false" data-explain="【第 7 课】三招都做不到那三件事，这正是第 7 课要留下的钩子——它不是让你「把摘要做得更好」。">D · 把滚动摘要做得更精细，尽可能不丢细节</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">12 · 「模型答对了它从没训练过的公司政策」——RAG 改变的到底是什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 8 课】模型没换、也没变聪明，更没背过你的资料——这是本课要破的神话。">A · 模型在这次调用里临时「学到了」新知识</button>
+        <button class="opt" data-correct="true" data-explain="【第 8 课】变的是「这次请求喂进去的内容」：多了一段检索出来的原文。真正答话的仍是那个无状态模型。">B · 你在这段 prompt 里多塞了几段检索出来的原文</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】RAG 不训练、不微调权重，也不改模型参数。">C · 检索过程微调了模型的一部分参数</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】不是换个更强的模型：更强 ≠ 知道你们公司的 600 元上限。没喂进去就是不知道。">D · 换了个更擅长「查资料」的模型</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">13 · 关于 embedding 向量，那条必须记住的铁律是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 8 课】「向量都在空间里所以可比」等于没说：每个 embed 模型有自己的坐标系，跨模型比相似度就像拿公里数比斤两。">A · 向量都在同一个数学空间里，所以跨模型也能比</button>
+        <button class="opt" data-correct="true" data-explain="【第 8 课】铁律：向量只在【同一个 embedding 模型内】可比。换模型 = 换坐标系，索引要重建。">B · 向量只在同一个 embedding 模型内可比；换模型就得重建索引</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】余弦相似度本身没问题；限制不在「度量方式」，在「两个向量是不是同一套坐标系产的」。">C · 余弦相似度不如欧氏距离可靠，应该改用欧氏距离</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】维度不同当然不能直接算，但即使维度一样（比如两个 1536 维的模型），跨模型也不可比——问题在坐标系，不在维度。">D · 只要两个模型的向量维度相同就可以互算</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">14 · 关键词检索和语义检索，各自的软肋分别是什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="true" data-explain="【第 8 课】实测：同一件事换种说法问，关键词重合度从 0.62 掉到 0.11（判无命中），语义余弦只从 0.77 到 0.67 仍然捞对。而语义的软肋是精确串——第 9 课实测「RTO 是多少」语义连 top-3 都没进，关键词排第 2。">A · 关键词只认字面（换个说法就断）；语义会漏「精确串」（缩写、错误码）</button>
+        <button class="opt" data-correct="false" data-explain="【第 8/9 课】反了。关键词恰恰是精确串的主场，语义才是「换说法」的主力。">B · 关键词擅长理解语义；语义擅长精确匹配</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】关键词在照原话问时非常好用（0.62 高命中）——它不是没用，是「只认字面」。">C · 关键词检索毫无价值，可以直接删掉</button>
+        <button class="opt" data-correct="false" data-explain="【第 8/9 课】两者都会错：语义会漏精确串、也会被近义噪音骗（第 9 课「学习基金」那题它就捞错）；所以才有混合与 rerank。">D · 语义检索不会出错，出错一定是关键词那一路</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">15 · 检索结果为空时，把「空」原样交给模型会发生什么？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 8 课】实测恰恰相反：它不会老实说不知道，而是自信地编——甚至假引一条手册里根本不存在的条款（最权威的假象最危险）。">A · 模型会老实回答「我不知道」</button>
+        <button class="opt" data-correct="true" data-explain="【第 8 课】实测现场：检索断了以后，模型编了一段「工伤认定」理论，还假引了一条手册里不存在的条款。所以检索为空时要返回一句明确话术（「没有找到相关内容，请如实告诉用户资料里没有，不要推测」），别甩空串——空串等于把编造权交还给模型。">B · 它会自信地编造，甚至假引不存在的条款——所以检索为空时要给明确话术，不能甩空串</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】它不会报错，也不会停：它会照常生成一段听起来很合理的回答。这正是危险所在。">C · 会直接报错，提示检索失败</button>
+        <button class="opt" data-correct="false" data-explain="【第 8 课】不会重试——重试只有在你的代码里显式写了才会发生；模型自己不会「发现检索空」这件事。">D · 它会自动重试检索，直到有结果为止</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">16 · 手上没有评估集的时候，你能说的最诚实的一句话是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 9 课】「看着挺好」不是工程语言：改完你只能说「感觉好点了」，既不能证明改动有效，也不能发现它把别的题弄坏了。">A · 「我试了几个问题，看着挺好」</button>
+        <button class="opt" data-correct="true" data-explain="【第 9 课】没有尺子，你只能看到「变化」，看不到「改进」。所以第 9 课第一件事不是调参，是先造尺子：一份标了 gold 的评估集 + 客观指标。">B · 「我看到了变化，但我无法判断它是改进」</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】让模型自评既不稳也不客观，而且它无法替你判断「检索有没有捞对那一块」。">C · 「我让模型自己评价了一下，它说不错」</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】换更强的模型只会换掉「生成」那一端，你依然没有证据说它更好——尺子还是得先有。">D · 「换个更强的模型就一定更好」</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">17 · 混合检索用 RRF 融合两路，它「只用名次、不用分数」的核心好处是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 9 课】RRF 并不提升语义计算的质量——语义质量由那一端自己的模型决定，RRF 只做名次算术。">A · 让语义相似度算得更准</button>
+        <button class="opt" data-correct="true" data-explain="【第 9 课】关键词的「重合率」和向量余弦是两种量纲（前者没重合就是 0，后者中文短句天然 0.3~0.8），直接加权求和必须先归一化调参；名次是无量纲的——第 1 名在哪一路都是第 1 名，于是第 8 课那条「量纲不可跨路搬运」被顺手绕开。">B · 名次是无量纲的，绕开了「两路分数量纲不同、不能直接加权」的难题</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】RRF 反而会把某一路的错答案一起顶上来（实测两例：混合的 Hit@1 与单纯语义持平）。它的价值在 Hit@k / Recall@k 那一栏。">C · 它保证融合后 Hit@1 一定高于任何单路</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】RRF 完全不知道谁是「答案块」——它只用名次算术，看不见 gold。">D · 它会自动识别哪一路更可信，给可信的那路更高权重</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">18 · 检索的分数阈值该怎么定？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 9 课】抄来的阈值没有依据：实测上一课那个 0.6 拿到 30 块语料上会误杀 32% 的题。别人的数、别的语料、别的 embed 模型，都不能直接搬。">A · 找一个成熟的 RAG 项目，抄它的经验值</button>
+        <button class="opt" data-correct="true" data-explain="【第 9 课】标准做法：算【正样本】（答案块的最高分）与【负样本】（噪音天花板）两条分布，看重叠区在哪，再按「更怕答不出还是更怕编」取舍。分布分得开 → 空隙里随便挑；重叠严重 → 阈值救不了，该去提升检索质量。">B · 算正样本与负样本两条分布，看重叠区，再按场景取舍</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】0.5 不是「中庸」，是「没标定」。实测在 30 块语料上 0.5 的漏放率高达 91%——正是「取中间值」最没道理的地方。">C · 取 0.5 这种中间值最稳妥</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】不设阈值 = 任何噪音都能当答案送进 prompt，等于放弃「检索为空」这个重要的表达。">D · 干脆不设阈值，全部交给模型判断</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">19 · 多轮里用户追问「那另外那部分呢」，直接拿去检索常捞错。最该做的处理是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 9 课】换 embed 模型救不了：这条查询本身就没携带主题信息，再好的模型也不知道「那部分」指什么。">A · 换一个更强的 embedding 模型</button>
+        <button class="opt" data-correct="true" data-explain="【第 9 课】查询要「自足」——补全被省略的主题。实测：同一套索引、同一路检索器，把 5 道追问补全后 Hit@1 从 2/5 变 5/5。而「模型会不会自己补」不稳，所以要显式做（system 里明确要求 query 自足，或专门加一步改写），并用同一把尺子验收。">B · 显式把追问改写成「自足」的查询再检索（补全主题），并验收效果</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】把整段历史塞进检索会让它偏离「这次要查什么」——历史里几十个话题词都是噪音。正确做法是压成一条补全了主题的查询。">C · 把完整对话历史拼进检索 query</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】调大 k 只是多塞几块，捞错的根因（query 没主题）没解决；k 调到能蒙中的量级就等于全量塞了。">D · 把 top_k 调大，多塞几块总能蒙中</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">20 · 你在 22 道题的评估集上得到「A 方案 0.91、B 方案 0.95」。正确的读法是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="【第 9 课】别急着下结论：22 题上名次差一名 = 4.5%，0.91 与 0.95 之间只差【一道题】。这个量级的差距被尺子自身的噪音淹没了。">A · B 明显更好，直接定下来用 B</button>
+        <button class="opt" data-correct="true" data-explain="【第 9 课】先问「这个差距比尺子的噪音大吗」：只差一道题 → 不足以决定；要做的是扩题（把线上真问题补进去）再看差距是否稳定，同时留一批题不参与调参、只做验收。">B · 只差一道题，不足以定论——先扩充题集再看差距稳不稳</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】换数据集不能解决「题太少」这个根本问题，只是把噪音换成另一种噪音；而且换完你就没法跟历史数字比较了。">C · 换一个别人的公开数据集来验证</button>
+        <button class="opt" data-correct="false" data-explain="【第 9 课】别拿 Hit@1 一个数说话——第 9 课实测里，混合检索在 Hit@1 上没赢，但在决定「注入哪几块」的 Hit@k/Recall@k 上全胜。先看对指标，再看噪音。">D · 只看 Hit@1 就够了，其他指标是干扰</button>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="paper-b">2 · 卷 B · 数字默写</h2>
+  <p>
+    下面 12 个数，都是这九课里<strong>真金白银量出来的</strong>（不是我从别处抄的）。
+    先在纸上/脑子里默写，写不出来就是当时只看了热闹。<strong>写完再点开对答案</strong>——点开得太早，这一卷就白做了。
+  </p>
+
+  <details class="ans">
+    <summary>1 · 第 6 课：一轮轮聊下去，输入 token 实测是怎么涨的？（三个数）</summary>
+    <p><strong>445 → 553 → 667</strong>（token）。这就是「每轮重读全部历史」的账单形态：每轮都在变大，而且老历史被反复计费。</p>
+  </details>
+
+  <details class="ans">
+    <summary>2 · 第 8 课镜 1：同一道手册题，三种喂法的 input token 各是多少？</summary>
+    <p>零注入 <strong>132</strong> ｜ 注入检索 top-1 原文 <strong>213</strong> ｜ 全量塞 8 块 <strong>591</strong>。
+    记住那条比例：全量约是「只喂答案那一页」的 <strong>2.8 倍</strong>，答案却一样——多花的钱买的是零收益。</p>
+  </details>
+
+  <details class="ans">
+    <summary>3 · 第 8 课镜 3：注入 top-3 大概要花多少 token？全量呢？（给量级即可）</summary>
+    <p>注入 top-3 ≈ <strong>318~336</strong>；全量 8 块 ≈ <strong>576~596</strong>。也就是说「答案页 + 邻页」大概多加 <strong>150</strong> token，再拖上全书再加 <strong>270</strong> 左右。</p>
+  </details>
+
+  <details class="ans">
+    <summary>4 · 第 8 课镜 2：同一件事问两遍，关键词和语义各是什么表现？（四个数 + 那个下限）</summary>
+    <p>关键词：照原话 <strong>0.619</strong>、换说法 <strong>0.107</strong>（命中下限 <strong>0.15</strong> → 判「没检索到」）；
+    语义：<strong>0.770</strong> → <strong>0.665</strong>（几乎没动，照样捞对）。<br>
+    一句话：关键词 0.62→0.11 断了，语义 0.77→0.67 不断。</p>
+  </details>
+
+  <details class="ans">
+    <summary>5 · 第 9 课：四路检索器的 Hit@1 各是多少？（30 块语料 / 22 题）</summary>
+    <p>关键词 <strong>0.73</strong> ｜ 语义 <strong>0.91</strong> ｜ 混合 RRF <strong>0.91</strong> ｜ 混合·语义×2 <strong>0.95</strong>。<br>
+    配套记：混合在 Hit@<strong>k</strong> 与 Recall@<strong>k</strong> 上是 <strong>1.00 / 1.00</strong>（唯一的满分），而它的 Hit@1 并<strong>没有</strong>赢过语义——因为 RRF 会把某一路的错答案一起顶上来。</p>
+  </details>
+
+  <details class="ans">
+    <summary>6 · 第 9 课：上一课那个 MIN_SCORE = 0.6，拿到 30 块语料上会怎样？（两个率）</summary>
+    <p>误杀（正样本被滤掉）<strong>32%</strong>（7 道题）、漏放（噪音过线）<strong>14%</strong>。所以它两头不讨好——那个数是在 8 块语料上拍的，语料一变就失效。</p>
+  </details>
+
+  <details class="ans">
+    <summary>7 · 第 9 课：余弦相似度的正/负样本重叠区大概在哪个区间？</summary>
+    <p>约 <strong>[0.424, 0.647]</strong>（正样本最低 0.424，负样本最高 0.647）。落在重叠区里的任何阈值都必然两头不讨好——这才是「阈值只能取舍、救不了」的量化依据。<br>
+    对照：关键词那一路的重叠区是 <strong>[0.062, 0.333]</strong>，量级完全不同 → 量纲不可跨路搬运。</p>
+  </details>
+
+  <details class="ans">
+    <summary>8 · 第 9 课：追问「那另外那部分呢」这类查询，补全主题前后 Hit@1 各是多少？</summary>
+    <p>原话 <strong>2/5</strong> → flash 改写 <strong>5/5</strong> → 人工自足版 <strong>5/5</strong>。同一套索引、同一路检索器，只把 query 补全就翻了倍——所以改写必须是显式的一步。</p>
+  </details>
+
+  <details class="ans">
+    <summary>9 · 第 9 课：top_k 扫到多少就够？「全量塞」又是 k=3 的几倍 token？</summary>
+    <p>Hit@k 到 <strong>k=2</strong> 就满了、Recall@k 到 <strong>k=3</strong> 也满了；之后 k=5/8/30 指标纹丝不动，token 一路从 197 涨到 <strong>1576</strong>——<strong>8.0 倍</strong>，买的是零收益。</p>
+  </details>
+
+  <details class="ans">
+    <summary>10 · 第 9 课：语料和评估集的规模各是多少？（对比第 8 课）</summary>
+    <p>语料 <strong>8 → 30</strong> 块（前 8 块原文未动，所以 0001 里挂的 search_manual 仍对得上）；评估集 <strong>22</strong> 题、每题标 gold（其中 2 题多 gold，用来让 Recall 和 Hit 分家）。</p>
+  </details>
+
+  <details class="ans">
+    <summary>11 · 第 8 课：向量用的是哪个模型、多少维、花多少钱？</summary>
+    <p><strong>BAAI/bge-small-zh-v1.5</strong>，<strong>512</strong> 维，ONNX CPU 本地跑，<strong>¥0</strong>、离线可复现。<br>
+    配套要能说清：DeepSeek 官方 API <strong>没有</strong> embeddings 端点（2026 实测 404），Anthropic 也不提供（官方推荐 Voyage 等伙伴模型），OpenAI 有 text-embedding-3-*。所以 RAG 天生是「对话模型 + 向量服务」两家组装。</p>
+  </details>
+
+  <details class="ans">
+    <summary>12 · 第 1 课：Agent 比一次 API 调用多哪三样？（这句要能一字不差地说出来）</summary>
+    <p><strong>工具清单（tools）+ 可续历史（messages）+ 循环（agentic loop）</strong>。<br>
+    Anthropic 的原话：<em>an LLM using tools to perform a task in a loop</em>。</p>
+  </details>
+
+  <h2 id="map">3 · 错题 → 该重读哪一篇</h2>
+  <p>把卷 A 的错题按课归类，然后照这张表去读<strong>对应的原典</strong>——不是重读全部，只读被打中的那一片。速查卡（第 5 节）也按这张表对应。</p>
+  <table class="cheat">
+    <thead><tr><th>错在卷 A 的哪几题</th><th>意味着哪一课有洞</th><th>去读哪篇原典的哪一节</th><th>动手回看</th></tr></thead>
+    <tbody>
+      <tr><td>1、12</td><td>第 1 课 · agentic loop 与「什么是 Agent」</td><td><strong>Building Effective Agents</strong> → 精读 <em>Workflows vs. Agents</em>，把五个模式的名字抄下来</td><td><code>code/0001-minimal-agent.py</code> 的 while 循环</td></tr>
+      <tr><td>2、3、4</td><td>第 2/3/4 课 · 工具说明书 / 结构化输出 / prompt 分工</td><td>Anthropic <em>Tool use</em> 官方文档（tools 三字段 + tool_result 结构）；OpenAI <em>Structured outputs</em>（对照「工具即输出」）</td><td><code>code/0002</code> 三镜、<code>code/0003</code> 出口实验</td></tr>
+      <tr><td>5</td><td>第 5 课 · 流式是 I/O 层</td><td>Anthropic <em>Streaming</em> 官方文档（事件类型与 delta）</td><td><code>code/0005</code> 镜 2/镜 3</td></tr>
+      <tr><td>6、7、8</td><td>第 6 课 · 成本与 token</td><td>Anthropic <em>Token counting</em> + <em>Prompt caching</em> 官方文档（缓存省的是「重复前缀的输入单价」）</td><td><code>code/0006</code> 四镜</td></tr>
+      <tr><td>9、10、11</td><td>第 7 课 · 无状态与上下文管理</td><td><strong>Effective context engineering for AI agents</strong> → 四策略 write long / read selective / divide &amp; conquer / summarize（本课「三招」是它的工程化子集）</td><td><code>code/0007</code> 镜 1「无状态实锤」</td></tr>
+      <tr><td>12、13、14、15</td><td>第 8 课 · RAG 与检索</td><td><strong>Introducing Contextual Retrieval</strong>（上下文前缀 / 为什么还要 BM25 / rerank）+ OpenAI <em>Text embeddings</em> 官方文档</td><td><code>code/0008</code> 镜 1、镜 2</td></tr>
+      <tr><td>16、17、18、19、20</td><td>第 9 课 · 评估与检索调优</td><td><a href="https://docs.ragas.io/">Ragas 官方文档</a>的指标清单（对照本课手写的 Hit@k / Recall@k / MRR；带 context 的量检索、带 faithfulness 的量生成）</td><td><code>code/0009</code> 四镜</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="read">4 · 三篇硬原典：带着问题重读</h2>
+  <p>
+    这一天的阅读遵循一条规矩：<strong>读完一篇，合上它，用嘴把下面 4–5 个问题答一遍</strong>（不是「我好像记得」，是「我说得出来」）。
+    答不出来的那一条，就是你这次重读真正该带走的东西——记到第 6 节。
+  </p>
+
+  <div class="callout read">
+    <span class="t">原典 1 · Building Effective Agents（Anthropic，2024-12）</span>
+    <p>
+      <strong>为什么现在重读</strong>：它是这九课全部技术选择的<em>立场来源</em>——为什么我们手写循环而不是一上来用框架、为什么第 9 课要先造尺子。
+      第 1 课时你读它是为了看懂循环；现在你已经手写过 9 课，回来读的是<strong>判断力</strong>。
+    </p>
+    <p><strong>读的时候回答我这几个问题</strong>（合上文章再说）：</p>
+    <ol>
+      <li>它给 <strong>workflow</strong> 和 <strong>agent</strong> 划的那条界线是什么？（谁决定「下一步做什么」？）</li>
+      <li>五类基础模式的名字能不能一字不差地报出来？每一类各用一句话说它干什么。<span class="qtag">（提示：其中有一类是「让一个模型反复打磨另一个模型的输出」——你第 9 课做的评估台和它差在哪？）</span></li>
+      <li>它对「什么时候该上 agent」的立场是什么？为什么它反复强调"先用最简单的方案"？</li>
+      <li>关于 <strong>tools</strong>（工具设计），它给的建议是什么？这跟你第 2 课亲手做的「description 三镜」对得上吗？</li>
+      <li><strong>回到你自己</strong>：你现在这个「查手册的 0001」——按它的分类，它是 workflow 还是 agent？为什么？如果重来一次，你会不会用更简单的做法达到同样效果？</li>
+    </ol>
+  </div>
+
+  <div class="callout read">
+    <span class="t">原典 2 · Effective context engineering for AI agents（Anthropic）</span>
+    <p>
+      <strong>为什么现在重读</strong>：第 7 课读它是为了知道「上下文会烂」；第 8、9 课读它是为了「read selective 怎么落地」。
+      现在三块拼图都在你手里了，回来读的是<strong>这四条策略之间的取舍关系</strong>。
+    </p>
+    <p><strong>读的时候回答我这几个问题</strong>（合上文章再说）：</p>
+    <ol>
+      <li>它把 <strong>context engineering</strong> 和 <strong>prompt engineering</strong> 怎么区分？为什么要专门造一个新词？</li>
+      <li>四条策略分别是什么？<strong>哪一条</strong>是第 8/9 课（RAG、检索评估）直接落的？</li>
+      <li>关于「<strong>先把资料全塞进去</strong>」vs「<strong>用时再去取</strong>」（just-in-time / 按需检索），它的立场是什么？有没有给具体的适用条件或数字门槛？<span class="qtag">（第 8 课那个「资料库小于 20 万 token 时全塞可能更划算」的说法，在原文里究竟怎么表述的？）</span></li>
+      <li>它提到的 <strong>compaction / 摘要</strong> 和 <strong>子 Agent（sub-agent）</strong> 各解决了什么问题？这两种手段和你第 7 课的「三招压历史」是什么关系？</li>
+      <li><strong>回到你自己</strong>：你 0001 里的上下文，现在由哪几块构成（system / 历史 / 工具说明书 / 检索结果）？按这篇文章的标准，哪一块最该先被优化？</li>
+    </ol>
+  </div>
+
+  <div class="callout read">
+    <span class="t">原典 3 · Introducing Contextual Retrieval（Anthropic）</span>
+    <p>
+      <strong>为什么现在重读</strong>：第 8 课你读到它「给块加上下文前缀」；第 9 课你亲手量出了它另外两条论点的现场证据——
+      <strong>embedding 漏精确串</strong>（"RTO 是多少"语义连 top-3 都没进）和 <strong>BM25 双轨合流</strong>（RRF 混合把答案顶回第 1）。
+      重读时请把这两件事对上号。
+    </p>
+    <p><strong>读的时候回答我这几个问题</strong>（合上文章再说）：</p>
+    <ol>
+      <li>传统的「切块 + 向量检索」它指出的核心缺陷是什么？<span class="qtag">（用第 8 课那个「一块孤立的『门诊报销 80%』不知道在说哪家、哪年」的例子来讲。）</span></li>
+      <li>「上下文前缀」是怎么生成的？它为什么在这个做法里用了一个便宜模型？</li>
+      <li><strong>把官方报告的数字抄下来</strong>：单加上下文前缀、再加 BM25、再加 rerank，检索失败率分别降到多少？<span class="qtag">（这一条不许靠记忆，要在原文里找到那几个百分比抄到你的错题本上。）</span></li>
+      <li>它怎么解释「有了 embedding，为什么还需要 BM25」？这跟第 9 课镜 1 题 02 的现象是同一条吗？</li>
+      <li><strong>回到你自己</strong>：你 0009 里的 30 块语料，用这份原典的标准看，还差什么？（提示：块里有没有指代不明的「它/该/上述」？rerank 那一层你有没有？）</li>
+    </ol>
+  </div>
+
+  <div class="callout info">
+    <span class="t">官方文档速查档（不精读，只查账）</span>
+    <p>
+      Anthropic 侧：<strong>Tool use</strong>（tools 三字段 / tool_result 结构 / 并行工具调用）、<strong>Prompt engineering overview</strong>（system 的角色）、
+      <strong>Streaming</strong>（六种事件 / 三种 delta / 为什么工具参数要拼）、<strong>Token counting</strong> 与 <strong>Prompt caching</strong>（缓存命中「重复前缀」的那部分输入）。
+      OpenAI 侧：<strong>Structured outputs</strong>（对照「工具即输出」）、<strong>Text embeddings</strong>（embedding = 语义向量，text-embedding-3-*，对照本课本地 bge）。
+      这些文档在你的 <code>RESOURCES.md</code> 与各课"必读"栏里都有链接。<strong>要查哪一条就只翻哪一条</strong>——今天读文档是为了对账，不是为了通读。
+    </p>
+  </div>
+
+  <h2 id="cheatsheet">5 · 一页速查卡（以后一直翻这张）</h2>
+  <p>把九课压成一张表。<strong>用法：读原典前扫一眼，读完合上、凭记忆把它复述出来</strong>——复述不出来说明还没真会。</p>
+
+  <table class="cheat">
+    <thead><tr><th>课</th><th>一句话核心（要能复述）</th><th>必须记住的数 / 判据</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1</strong> M1<br>agentic loop</td>
+        <td>Agent = 在循环里自主决定调工具的大模型；比一次调用只多<strong>工具清单 + 可续历史 + 循环</strong>。</td>
+        <td>stop_reason == tool_use 就转圈；end_turn 才收工。</td></tr>
+      <tr><td><strong>2</strong> 工具说明书</td>
+        <td>模型对工具的了解<strong>只有</strong> name / description / input_schema 三个字段，函数体它看不见。</td>
+        <td>雕说明书 &gt; 换更聪明的模型；同一函数换三种说明书行为完全不同。</td></tr>
+      <tr><td><strong>3</strong> 结构化输出</td>
+        <td>要 dict 别求它「只输出 JSON」，让它用 <strong>tool_use 交回来</strong>：block.input 天生是 dict，还有 schema 强约束。</td>
+        <td>裸 JSON = 软约束（打地鼠）；工具即输出 = 硬约束。</td></tr>
+      <tr><td><strong>4</strong> system vs desc</td>
+        <td>分工判据：<strong>管一个工具 → description；管整台 Agent → system</strong>。</td>
+        <td>不写 system 的 Agent 会悄悄扩权成「通用助手」，desc 自守拦不住。</td></tr>
+      <tr><td><strong>5</strong> 流式</td>
+        <td>流式是 <strong>I/O / 体验层</strong>的开关，不是新的 agent 机制；用户体感 ≈ TTFT。</td>
+        <td>agentic loop 一行不改；工具参数半个半个到，<strong>工具那一拍省不掉</strong>。</td></tr>
+      <tr><td><strong>6</strong> 成本与 token</td>
+        <td>烧钱 = <strong>输出单价更贵 + 每轮重读全部历史</strong>（模型无状态）。</td>
+        <td>实测 445→553→667；max_tokens 是<strong>输出封顶</strong>不是省钱开关（thinking 共享预算）；缓存省「重复前缀的输入单价」。</td></tr>
+      <tr><td><strong>7</strong> 多轮与上下文</td>
+        <td>它「记得」的边界 = <strong>你此刻喂进窗口的内容</strong>；user 和 assistant 都要 append 回去。</td>
+        <td>三招都是拿细节换空间：截断 / 滑动窗口 / 滚动摘要；出路是外部存储 + 检索注入。</td></tr>
+      <tr><td><strong>8</strong> RAG</td>
+        <td>模型没换、没背书——变的是<strong>这次请求里多了几段检索出来的原文</strong>。五步：切块 → embed → 建索引 → 检索 top-k → 注入。</td>
+        <td>向量只在<strong>同一 embed 模型内</strong>可比；关键词换说法 0.62→0.11 断、语义 0.77→0.67 不断；检索=空 → 模型<strong>连引用一起编</strong>。</td></tr>
+      <tr><td><strong>9</strong> 检索评估</td>
+        <td>没有尺子只有「变化」，没有「改进」；尺子 = <strong>评估集（题 + gold）+ 指标</strong>。</td>
+        <td>Hit@1/Hit@k/Recall@k/MRR；四路 0.73/0.91/0.91/0.95；0.6 误杀 32%；重叠区 [0.424,0.647]；追问改写 2/5→5/5；k 拐点 3，全量 8 倍 token。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout do">
+    <span class="t">面试视角：这九课对应招聘方会问什么</span>
+    <p>
+      <strong>「什么是 Agent？和普通调用有什么区别？」</strong>→ 第 1 课那句（工具清单 + 历史 + 循环）。<br>
+      <strong>「模型输出不稳定/格式不对怎么办？」</strong>→ 第 2、3 课：工具即输出 + schema 强校验 + 兜底降级。<br>
+      <strong>「怎么控制成本？」</strong>→ 第 6 课：拆 input/output 计价、缓存、max_tokens 封顶、别让历史无限涨。<br>
+      <strong>「对话太长怎么办？」</strong>→ 第 7 课三招 + 「但真正的出路是检索注入」。<br>
+      <strong>「你们怎么做 RAG？为什么不全塞？」</strong>→ 第 8 课五步 + 检索注入的经济账；主动补一句「资料很小的时候官方建议直接全塞 + 缓存」加分。<br>
+      <strong>「你怎么知道你的 RAG 是好的？」</strong>→ 第 9 课：评估集 + 指标 + 阈值标定 + 自足性。这一问是这九课最值钱的一道，答得出的人不多。
+    </p>
+  </div>
+
+  <h2 id="wrap">6 · 你的错题本（今天真正的产出）</h2>
+  <p>别写在这张网页上——<strong>拿纸写，或者另开一个文件</strong>（放 <code>learning-records/</code> 也行）。就三栏：</p>
+  <ol>
+    <li><strong>错的题号 + 它考哪一课</strong>（卷 A、卷 B 分开记）</li>
+    <li><strong>正确的那句话</strong>（用你自己的话，不要抄本页）</li>
+    <li><strong>下次什么时候再考自己</strong>（建议：明天、一周后、M4 开始前各一次）</li>
+  </ol>
+  <div class="callout warn">
+    <span class="t">这一天的验收标准（别骗自己）</span>
+    <p>
+      ① 卷 A、卷 B 全部做完，并统计出「塌方集中在哪几课」；<br>
+      ② 三篇原典的带读问题<strong>合上文章能说出口答</strong>（说不出的那条记进错题本）；<br>
+      ③ 第 5 节速查卡：<strong>能凭记忆把「一句话核心」那一列复述出 8 课以上</strong>——这是今天最硬的验收；<br>
+      ④ 错题本成文，并给自己排了下次复考的日期。
+    </p>
+    <p class="fn">做完把结果发我：哪些课塌方、三篇里哪篇答得最卡。我会据此调整 M4 的开篇——如果 M2 有洞就顺手补，如果 M2/M3 扎实就直接进 M4。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="glossary-core-terms.html">术语表 ·</a>
+    <span class="next">复习日之后：M4「手写 vs 框架」——手写循环到此为止（尚未发布）</span>
+  </div>
+
+  <footer class="colophon">复习日 · Agent 开发冲刺课 · 覆盖 M2（第 2–6 课）+ M3（第 7–9 课）。建议在 M3 正式收束后、M4 开始前用掉这一天。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

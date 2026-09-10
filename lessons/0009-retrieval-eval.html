@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 9 课 · 给 RAG 装一把尺子：检索评估（eval 首次上手）</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<div class="lesson">
+
+  <!-- ============ 页眉 ============ -->
+  <div class="lesson-kicker">第 9 课 · 模块 M3 · 记忆与上下文 · <strong>第三课</strong></div>
+  <h1 class="lesson-title">给 RAG 装一把尺子：检索评估<br>（eval 第一次上手 · Hit@k / MRR · 混合检索 · 阈值标定）</h1>
+  <p class="lesson-sub">上一课你能让 RAG 答对几道题了，但"答对了几道、换了写法是不是更好、阈值该设多少"全凭感觉。
+  今天给你的 RAG 装一把<strong>尺子</strong>：手写一份评估集、算四个客观指标，然后用它把上一课亲手量出的两个悬案一一结清——
+  <strong>阈值该设在哪</strong>（上一课那个 0.6 到底错在哪）和 <strong>追问要不要改写</strong>。再顺手量出：把关键词和语义<strong>合流</strong>，比任何单路强多少。</p>
+
+  <div class="lesson-meta">
+    <span class="chip mission">使命：3 个月转 AI 应用工程师</span>
+    <span class="chip">约 100–130 分钟</span>
+    <span class="chip">需要：第 8 课环境（本课不用再装任何东西）</span>
+    <span class="chip">花费：几分钱 token</span>
+  </div>
+
+  <p class="lede">
+    面试官问过一个很多人答不好的问题：<em>"你说你的 RAG 做得不错——<strong>你怎么知道</strong>？"</em>
+    答"我试了几个问题都答对了"是学生答案；答"我有 22 道标注过的题，Hit@3 从 0.95 调到 1.00，阈值按分数分布标定过"才是工程师答案。
+    差别不在技术难度——造这把尺子只要 20 行代码——而在<strong>有没有意识到它必须存在</strong>。
+    今天这一课，就是让你从此以后说"更好了"的时候，手里都是数字。
+  </p>
+
+  <!-- ============ 1 心智模型 ============ -->
+  <h2 id="mental">1 · 心智模型：没有尺子，就没有"改进"，只有"变化"</h2>
+
+  <h3>先承认一件事：上一课的成果，没有任何东西能证明它"好用"</h3>
+  <p>
+    上一课你跑通了最小 RAG，也亲眼看了几面镜子（闭卷会编、关键词换说法会断）。但那时候你手里能说的只有"我看它答对了"。
+    于是下面这三个问题，你一个都答不了：
+  </p>
+  <ul>
+    <li>我今天动了检索的几行代码——它到底是<strong>变好了还是变坏了</strong>？还是只是"不一样了"？</li>
+    <li>上一课那个 <code>MIN_SCORE = 0.6</code>，是<strong>对</strong>的吗？该往上还是往下？</li>
+    <li>我把手册从 8 块扩到 300 块，会掉多少？值不值得补个 rerank？</li>
+  </ul>
+  <div class="callout info">
+    <span class="t">本课一句话核心</span>
+    <p><strong>评估（eval）= 一份自己标的评估集 + 几个客观指标。</strong>
+    有了它，"感觉变好了"被翻译成"Hit@1 从 0.73 涨到 0.91"，调参才从玄学变成工程。
+    <strong>没有尺子，你只能看到"变化"；有尺子，你才知道那是"改进"。</strong></p>
+  </div>
+
+  <h3>尺子怎么造：评估集 + 四个刻度</h3>
+  <p>
+    评估集就是你自己写的一批题，每道题标注一个 <strong>gold</strong>（这道题的答案应该命中哪一块）。
+    有了 gold，机器就能自己判对错了——不用人看、不用模型自评。四个通用刻度（任何 RAG 项目、任何向量库都通用）：
+  </p>
+  <table style="width:100%;border-collapse:collapse;margin:.8rem 0">
+    <thead><tr style="border-bottom:2px solid var(--rule);text-align:left">
+      <th style="padding:.4rem .6rem">指标</th><th style="padding:.4rem .6rem">含义</th><th style="padding:.4rem .6rem">它回答什么问题</th></tr></thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--rule)">
+        <td style="padding:.4rem .6rem"><strong>Hit@1</strong></td>
+        <td style="padding:.4rem .6rem">top-1 里有没有 gold</td>
+        <td style="padding:.4rem .6rem">用户第一眼看到的对不对？（最严格）</td></tr>
+      <tr style="border-bottom:1px solid var(--rule)">
+        <td style="padding:.4rem .6rem"><strong>Hit@k</strong></td>
+        <td style="padding:.4rem .6rem">top-k 里有没有 gold</td>
+        <td style="padding:.4rem .6rem">我要注入给模型的那几块里，答案在不在？（<strong>RAG 最该看这个</strong>）</td></tr>
+      <tr style="border-bottom:1px solid var(--rule)">
+        <td style="padding:.4rem .6rem"><strong>Recall@k</strong></td>
+        <td style="padding:.4rem .6rem">该拿的 gold 拿全了几成</td>
+        <td style="padding:.4rem .6rem">答案横跨好几块时（"出差交通+住宿+餐补分别多少"），是不是漏了几块？</td></tr>
+      <tr>
+        <td style="padding:.4rem .6rem"><strong>MRR@k</strong></td>
+        <td style="padding:.4rem .6rem">第一个 gold 的名次取倒数（第 1 名 1.0 / 第 3 名 0.33 / 没进 top-k 记 0）</td>
+        <td style="padding:.4rem .6rem">答案排得靠不靠前？——它比 Hit 更敏感，"答案从第 1 掉到第 3"这种退化只有它看得出来</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <strong>Hit 和 Recall 会分家</strong>：如果一道题的答案横跨 3 块，而你只捞到 1 块，Hit@3 照样是满分（"中了"），Recall@3 只有 0.33（"该拿的没拿全"）。
+    这就是为什么两个都要看——只看 Hit，你会以为自己挺好，其实模型每次都在半块材料上作答。
+  </p>
+
+  <h3>题怎么出：一半的功夫在这里</h3>
+  <ul>
+    <li><strong>从语料反向出题</strong>：先想"这题该命中哪一块"，再写问句。写不出<strong>唯一</strong> gold 的题，说明你的语料有歧义、或者这题该拆成两道——这本身就是有价值的发现。</li>
+    <li><strong>三种问法都要有</strong>：<em>术语型</em>（"429 是什么意思"——字面串是关键词的主场）、<em>口语换说法型</em>（"骑车摔伤去诊所缝针能报吗"——语义的主场）、<em>追问型</em>（"那另外那部分呢"——谁都不擅长，第 3 节专治）。三类混着出，尺子才量得出差别。</li>
+    <li><strong>用真人的话出题</strong>，别照抄语料原话。全照抄的话，关键词那一档会虚高到无敌——量出来的就是假的。</li>
+    <li><strong>题集是资产，要长</strong>：线上每被问住一次、每修一个检索 bug，就往里加一道题。这不是"测试"，这是你的<strong>回归测试集</strong>——改代码前跑一遍，才知道自己没把昨天修好的弄坏。</li>
+  </ul>
+  <div class="callout warn">
+    <span class="t">我出题时真踩的坑：gold 标错，三路"全错"</span>
+    <p>
+      我写了一道题「凌晨一点收工打车回家，这笔钱能报吗？」，信心十足地标了 gold = 市内交通报销（C03）。
+      一跑：关键词、语义、混合<strong>三路全"错"</strong>——全都指向加班补贴那块。一查语料，加班补贴那块明写着"加班到 21:00 之后打车可报销"。
+      <strong>不是检索器坏了，是我的 gold 标错了。</strong>后来我把这道题改成了一句真正只属于 C03 的问法（台风天打车见客户）。
+      记住这条：<strong>指标异常时，先怀疑题，再怀疑检索器。</strong>评估集本身也需要评审。
+    </p>
+  </div>
+
+  <h3>有了尺子，四个旋钮才有名字</h3>
+  <p>RAG 的检索环节，你能拧的就是这四颗旋钮。本课把它们全量一遍，并且每一颗都遵守同一条纪律：<strong>一次只动一颗，其余不动</strong>——这就是"调参"和"瞎试"的分界线。</p>
+  <ol>
+    <li><strong>检索器选型</strong>：关键词（字面）／语义（embedding）／混合（两路合流）</li>
+    <li><strong>融合权重</strong>：混合时两路各占多少话语权</li>
+    <li><strong>分数阈值</strong>：低于多少分就判定"没检索到"（上一课那个 0.6）</li>
+    <li><strong>top_k</strong>：一次往 prompt 里塞几块</li>
+  </ol>
+
+  <h3>旋钮② 的答案长什么样：两路合流，用 RRF 而不是加权分数</h3>
+  <p>
+    关键词和语义是<strong>互补</strong>的，这是上一课就看到的：语义兜住"换个说法"，关键词兜住精确串（错误码、缩写、"429"这种）。
+    问题是怎么把两路排名合成一个？最直觉的做法是"分数加权求和"，但上一课你已经亲手证明过<strong>这不成立</strong>：
+    关键词的重合率（没重合就是 0）和余弦（中文短句天然在 0.3~0.8）是两种量纲，直接相加要先归一化、调参，很脏。
+  </p>
+  <p>
+    工程上的标准答案是 <strong>RRF（Reciprocal Rank Fusion）</strong>：<strong>只看名次，不看分数</strong>。某块的融合得分 = 两路里各自名次倒数的加权和。
+    名次是无量纲的——"第 1 名"在哪一路都是第 1 名，量纲问题被顺手绕过去了。想让语义更有话语权，就给它更大的权重。
+  </p>
+<pre>score(块) = w_关键词 × 1/(60 + 它在关键词路的名次) + w_语义 × 1/(60 + 它在语义路的名次)
+            ↑ 60 是业界默认的平滑常数；w = 权重，是要调的旋钮</pre>
+  <div class="callout warn">
+    <span class="t">诚实提醒：合流治的是"漏"，不是"排第一"</span>
+    <p>
+      RRF 合并两路时会<strong>把某一路的错答案也一起顶上来</strong>——本课实测就抓到两例：语义明明排对了，混合反而把关键词的错答案顶到了第 1 名。
+      所以别指望"混合 = 全面更强"。它的真实价值在 <strong>Hit@k / Recall@k</strong>（"答案有没有被漏掉"）那一栏，
+      而不是 Hit@1。这也是为什么必须<strong>分开看指标</strong>——只看一个数，你会得出相反的结论。
+    </p>
+  </div>
+
+  <h3>旋钮③ 的答案：阈值不是拍脑袋，是把分布摊开看</h3>
+  <p>
+    上一课你给检索加了分数下限，当场就有人（你自己）问："0.6 这个数凭什么？"标准做法只有一条：
+    把<strong>正样本</strong>和<strong>负样本</strong>的分数分布都算出来，看它们分不分得开。
+  </p>
+  <ul>
+    <li><strong>正样本分数</strong> = 这道题里<strong>答案块</strong>拿到的最高分（希望它高）</li>
+    <li><strong>负样本分数</strong> = 这道题里<strong>非答案块</strong>拿到的最高分，也就是"噪音的天花板"（希望它低）</li>
+  </ul>
+  <p>
+    两条分布<strong>分得开</strong>（噪音最高 &lt; 答案最低）→ 中间那段空隙里随便挑一个阈值都一样好。
+    两条分布<strong>重叠</strong> → 落在重叠区里的阈值<strong>必然两头不讨好</strong>：卡高一点就误杀答案，卡低一点就放进噪音。
+    这时你要做的不是"再试试 0.55"，而是<strong>承认阈值救不了、去提升检索质量</strong>（合流、rerank、换 embed 模型）。
+    阈值是最后一道保险，不是主力。而且它<strong>不能跨路搬运、也不能跨语料抄</strong>——语料一变就得重标（本课实测会给你看这个数）。
+  </p>
+
+  <h3>旋钮④ 的答案：看曲线拐点，不看感觉</h3>
+  <p>
+    k 越大，答案块越不容易被切掉，但 token 线性涨、注意力被稀释。正确做法是<strong>把 k 从头扫一遍</strong>，画指标曲线 + token 曲线，
+    取"指标到顶、钱还没涨"的那个拐点。这是本课最容易上手的一次真实调参。
+  </p>
+
+  <h3>还有一件上一课留下的悬案：追问必须"自足"</h3>
+  <p>
+    多轮对话里，用户很少说完整的话——"那二线城市呢""那另外那部分呢"。这种查询<strong>不自足</strong>：脱离上文根本不知道自己指什么。
+    上一课你看到模型<em>有时</em>会自己把它改写成完整查询、<em>有时</em>不会，而这件事直接决定检索命中。本课用尺子量出它值多少，
+    并且确认一件事：<strong>查询改写（query rewriting）必须是你显式做出来的一步</strong>——要么在工具描述/system 里明确要求"query 要自足"，
+    要么专门加一个改写环节（本课的镜 3 就是一个 20 行的最小实现）。别赌它自己发生。
+  </p>
+
+  <!-- ============ 2 自测 ============ -->
+  <h2 id="quiz">2 · 自测（答完立刻给反馈）</h2>
+  <p>先别往下翻。用记忆回答，答错没关系，"想不起来"本身在帮你记住。</p>
+
+  <div class="quiz">
+    <div class="q">
+      <p class="q-text">上一课的 RAG 能答对几道手册题了。接下来第一件该做的事是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="调提示词是「没有尺子」时最容易做的事：改完你只能说「感觉好点了」，没法证明。「感觉」不是工程。">A · 继续打磨提示词，把回答写得更漂亮</button>
+        <button class="opt" data-correct="true" data-explain="对。先造尺子：一份标注了 gold 的评估集 + 客观指标。没有它，后面每一次改动你都无法判断是改进还是退化。">B · 先写一份评估集（每题标"该命中哪块"）+ 算出客观指标，把"感觉"变成数字</button>
+        <button class="opt" data-correct="false" data-explain="换更强的模型会变的是「生成」那一端；而本课要量的是「检索」那一端。而且换了之后你依然没有证据说它更好——还是得先有尺子。">C · 换一个更强的对话模型，回答质量自然就上去了</button>
+        <button class="opt" data-correct="false" data-explain="上向量库是「换工具」不是「立标准」。工具换了，你依然答不出「变好没有」。而且本课证明了向量库本身不神秘，尺子比它稀缺得多。">D · 先换成 Chroma/FAISS 这样的专业向量库</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">一道题的答案横跨 3 块语料。你的检索只捞到其中 1 块，且排在第 1 位。此时——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="Hit@1 确实是满分（「中了」），但这正是问题：只看 Hit，你会漏掉「该拿的没拿全」——模型正拿着三分之一的材料在作答。">A · Hit@1 = 1.0，说明检索没问题</button>
+        <button class="opt" data-correct="true" data-explain="对。Hit 只问「中没中」，Recall 问「该拿的拿全没」。这里 Hit@3 = 1.0 但 Recall@3 只有 0.33。答案横跨多块时，两个指标必须一起看——这就是本课为什么把多块答案的题（出差交通+住宿+餐补）放进题集。">B · Hit@3 是满分，但 Recall@3 只有 0.33 —— 该拿的没拿全</button>
+        <button class="opt" data-correct="false" data-explain="MRR 算的是「第一个答案块的名次多靠前」，这里是第 1 名、拿满分，它不会告警。要说「退化」，得让答案掉到第 3 名它才有反应。">C · MRR 会立刻告警，提醒你答案排太靠后</button>
+        <button class="opt" data-correct="false" data-explain="跟块的大小无关。Recall 低是「该命中的块没进 top-k」，要么调 k、要么提升检索质量。">D · 说明语料块切得太大了</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">混合检索时，RRF（Reciprocal Rank Fusion）只用各路的名次、不用分数来融合。这样做最核心的好处是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="RRF 恰恰不关心语义好坏，它只做名次算术。语义质量由「语义那一路」自己的模型决定。">A · 让语义相似度的计算更精确</button>
+        <button class="opt" data-correct="true" data-explain="对。关键词的「重合率」和向量余弦是两种量纲（前者没重合就是 0，后者中文短句天然 0.3~0.8），直接加权求和必须先归一化调参。名次是无量纲的——第 1 名在哪一路都是第 1 名，于是上一课那条「量纲不可跨路搬运」被顺手绕过去了。">B · 名次是无量纲的 —— 不同检索路的分数量纲无法直接比较，用名次就绕开了归一化难题</button>
+        <button class="opt" data-correct="false" data-explain="RRF 不提升精确串的能力；精确串能被捞回来，是因为「关键词那一路」本来就擅长它、被合流带进了结果。">C · 它能让 embedding 模型不再漏掉错误码这类精确串</button>
+        <button class="opt" data-correct="false" data-explain="正相反：RRF 会把某一路的错答案也一起顶上来（本课实测抓到两例，混合的 Hit@1 反而没涨）。它的价值在 Hit@k/Recall@k 那一栏。">D · 它保证融合之后 Hit@1 一定高于任何单路</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">你从某篇技术博客抄来一个"经验值"：余弦相似度低于 0.6 就判没检索到。为什么这做法不该直接用在你的项目上？</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="0.6 是「太高」还是「太低」完全取决于你的数据分布——本课实测在 30 块语料上它误杀了 32% 的正样本，换一批语料又可能完全不同。所以问题不是「数值高低」，是「没做标定」。">A · 因为 0.6 这个数偏高，应该统一改成 0.3</button>
+        <button class="opt" data-correct="true" data-explain="对。阈值必须按你自己数据的分布来标定：算正样本（答案块）与负样本（噪音天花板）两条分布，看重叠区在哪，再按「更怕答不出还是更怕编」取舍。别人的数、别的语料、别的 embed 模型，全都不能直接搬——甚至你自己的语料从 8 块扩到 30 块，那个数就失效了。">B · 阈值要看你自己数据里"答案块的分数"和"噪音的分数"两条分布分不分得开；分布变了，这个数就失效</button>
+        <button class="opt" data-correct="false" data-explain="余弦和关键词重合率确实是两种量纲（第 8 课那条铁律），但本题说的是「同一个余弦阈值从别处搬过来」，问题在分布不同，不只是量纲。">C · 因为余弦相似度不能用阈值来过滤，只有关键词检索才能设阈值</button>
+        <button class="opt" data-correct="false" data-explain="过滤本身是合理的工程手段（防拿噪音当答案）。问题只在「数值是抄来的、没在本项目上标定过」。">D · 因为检索结果不该做过滤，全部塞给模型才对</button>
+      </div>
+    </div>
+
+    <div class="q">
+      <p class="q-text">多轮对话里用户追问"那另外那部分呢"，直接拿去检索经常捞错。最靠谱的处理方式是——</p>
+      <div class="opts">
+        <button class="opt" data-correct="false" data-explain="换 embed 模型救不了：这个查询本身就没携带主题信息，再好的模型也不知道「那部分」指什么。这是 query 自足性的问题，不是模型能力问题。">A · 换一个更强的 embedding 模型，让它自己看懂上下文</button>
+        <button class="opt" data-correct="true" data-explain="对。查询要「自足」——补全被省略的主题，让它脱离对话也能独立被检索到。而「模型会不会自己补」是不稳的（上一课已经见过），所以要么在工具描述/system 里明确要求 query 自足，要么专门加一步查询改写；做完还要用同一把尺子验收改写到底救回了多少。">B · 显式做一步查询改写：把追问改写成自足查询（补全主题）再检索，并用评估集验收效果</button>
+        <button class="opt" data-correct="false" data-explain="把整个对话历史都塞进检索？那会让检索偏离「当前要查什么」，而且历史里有几十个话题词，噪音极大。正确做法是把它压缩成一条补全了主题的查询，而不是全灌进去。">C · 把完整对话历史拼进检索 query，让检索器自己挑</button>
+        <button class="opt" data-correct="false" data-explain="调 k 只是多塞几块，捞错的根源没解决——该命中的块可能排到 20 名开外，k 调到那个量级就等于「全量塞」了。">D · 把 top_k 调大，多塞几块总能蒙中</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 动手 ============ -->
+  <h2 id="hands-on">3 · 动手：四镜把旋钮全拧一遍（约 50 分钟）</h2>
+  <p>核心思想：<strong>本课所有结论都由脚本自己算出来给你看</strong>——你要盯的不是我说了什么，而是指标随旋钮怎么动。</p>
+
+  <div class="callout info">
+    <span class="t">运行环境</span>
+    <p>
+      沿用第 1–8 课同一个 venv、让终端能看到 <code>ANTHROPIC_BASE_URL</code> 与 <code>ANTHROPIC_AUTH_TOKEN</code>。
+      <strong>本课不用装任何东西</strong>：embedding 库与本地模型都是第 8 课备好的。
+      <strong>但请务必用项目 venv 跑</strong>（<code>agent-lab\.venv\Scripts\python.exe</code>）——第 8 课你已经在全局 Python 上踩过一次 <code>ModuleNotFoundError: fastembed</code> 了。
+    </p>
+  </div>
+
+  <div class="exercise">
+    <span class="t">第 1 步 · 跑四镜实验，全程一条命令</span>
+    <p>文件已写好：<code>D:\agent学习\code\0009-eval-lab.py</code>。跑它：</p>
+<pre>agent-lab\.venv\Scripts\python.exe code\0009-eval-lab.py</pre>
+    <p>语料从上一课的 8 块扩到 <strong>30 块</strong>（前 8 块原文一字未动 → 你 0001 里挂的 search_manual 仍对得上），评估集 <strong>22 题</strong>、每题标了 gold。
+    下面是教师预跑的真实输出（指标是<strong>确定性</strong>的；只有镜 3 里"模型改写"那几句会因模型措辞略有浮动）：</p>
+<pre><span class="c"># 镜 1 · ★ 先有尺子：四路检索器一起上秤（22 题）</span>
+    #   gold            关键词       语义        混合        混·语×2     问题
+    01  C05             ✅C05      ✅C05      ✅C05      ✅C05      429 是什么意思？
+    02  C21             ❌C06      ❌C05      ✅C21      ❌C05      RTO 是多少
+    10  C03             ✅C03      ✅C03      ✅C03      ✅C03      刮台风那天打不到车，我打车去见客户…
+    12  C11             ❌C04      ✅C11      ✅C11      ✅C11      我打算休婚假去度蜜月，公司给几天？
+    15  C19             ❌C20      ✅C19      ❌C20      ✅C19      我的代码要几个人点头才能合进主干？
+    18  C28             ✅C28      ❌C12      ✅C28      ✅C28      我想报个线上课程，公司能出钱吗？
+    20  C30             ❌C17      ✅C30      ❌C17      ✅C30      供应商的货款多久结一次？
+    22  C14,C02,C13     ✅C14      ✅C13      ✅C14      ✅C13      出差去上海，交通、住宿和餐补标准分别是什么？
+
+  ── 汇总指标（这才是「感觉」的替代品）──
+    检索器                 Hit@1    Hit@3  Recall@3    MRR@5
+    关键词 keyword          0.73     1.00      0.98     0.86
+    语义 semantic          0.91     0.95      0.95     0.94
+    混合 hybrid            0.91     1.00      1.00     0.95
+    混合·语义×2              0.95     1.00      1.00     0.98
+  ├ 关键词 vs 语义：Hit@1 0.73 → 0.91（换说法那几题关键词会掉）
+  ├ 语义 vs 混合  ：Hit@3 0.95 → 1.00，Recall@3 0.95 → 1.00
+  │   ★ 混合在 Hit@1 上并没有赢（0.91 → 0.91）：RRF 把某一路的错答案也顶了上来。
+  │     但决定【注入哪几块给模型】的是 Hit@3 / Recall@3 —— 那一栏混合全胜。合流治的是【漏】，不是【排第一】。
+  └ 融合权重也能调：给语义 ×2 后 Hit@1 0.91 → 0.95（怎么知道该给多少？还是这把尺子说了算）。
+         盯：① 关键词 0.73 = "换说法就崩"的量化版；② 语义的软肋是【精确串】——
+             题 02"RTO 是多少"语义连 top-3 都没进（C05/C19/C27），而关键词把它排在第 2、混合直接顶到第 1。
+             ③ 同一套 RRF，只改一个权重，Hit@1 又动了 → 每颗旋钮都可用尺子量。
+
+<span class="c"># 镜 2 · ★ 阈值不是拍脑袋：把两条分数分布摊开看</span>
+  ══ 语义 · 余弦（0~1） ══
+    正样本（答案块的最高分）× 22： 0.819（最高）… 0.644（中位）… 0.424（最低）
+    负样本（噪音天花板）  × 22： 0.647（最高）… 0.561（中位）… 0.362（最低）
+    ⚠ 两条分布【重叠】：噪音最高 0.647 &gt; 答案最低 0.424 → 重叠区 [0.424, 0.647] 里的阈值必然两头不讨好
+          阈值        误杀(正样本被滤)      漏放(噪音当答案)
+        0.70        17 ( 77%)          0 (  0%)
+        0.60         7 ( 32%)          3 ( 14%)   ← 上一课那个值
+        0.50         2 (  9%)         20 ( 91%)
+        0.45         1 (  5%)         21 ( 95%)
+    → 上一课的 0.6 在这批数据上会【误杀 7 道题】（14、16、15、18、04、02、01）；降到 0.45 则误杀 1 道。
+         盯：那个 0.6 是在上一课 8 块语料上拍出来的——语料扩到 30 块（相似的块变多、噪音天花板抬高），
+             它就误杀了三成。阈值不是常数，是【你家数据的一次快照】。
+
+  ══ 关键词 · 2-gram 重合率（0~1） ══
+    正样本： 0.692（最高）… 0.143（中位）… 0.062（最低）      负样本： 0.333（最高）… 0.077（中位）… 0.000（最低）
+    ⚠ 两条分布【重叠】：重叠区 [0.062, 0.333]；0.15 那一档误杀 11 (50%)、漏放 6 (27%)
+         盯：两路的量级完全不同（余弦挤在 0.42~0.82，重合率从 0.06 到 0.69）——第 8 课
+             "量纲不可跨路搬运"从一句道理变成了两张分布表。
+
+<span class="c"># 镜 3 · ★ query 自不自足：追问原话 vs 改写（真调 flash 改写，原样打印）</span>
+    上一轮话题           追问原话         A 原话 top-1    B flash 改写                B top-1
+    出差住宿报销标准？     那要是更偏的地方呢    ✅ C02        偏远地区出差住宿报销标准是多少        ✅ C02
+    住院费用能报多少？     那另外那部分呢     ✅ C04        住院费用中不能报销的部分怎么处理       ✅ C04
+    报销单要谁审批？      那要是再贵一点的呢    ❌ C02        报销单金额更高时需要谁审批          ✅ C15   ← 改写救回
+    调休最多能放多久？     那要是没来得及用呢    ❌ C01        调休没来得及用怎么办              ✅ C10   ← 改写救回
+    会议室要预约吗？      那最早能定到什么时候   ❌ C06        会议室最早可以预约到什么时间         ✅ C29   ← 改写救回
+
+    Hit@1 对照（5 道追问）：A 原话 2/5 ｜ B flash 改写 5/5 ｜ C 人工自足 5/5
+         盯：① 同一套索引、同一路检索器，只把 query 补全 → 2/5 直接变 5/5；
+             ② 看第 2 行的改写：「住院费用中不能报销的部分怎么处理」——它其实把意思理解偏了，
+                只是"住院"这个主题词还在，照样捞对了。注意：命中 ≠ 改写正确，改写质量还得人看。
+
+<span class="c"># 镜 4 · ★ top_k 扫描：k 该设多少</span>
+      k    Hit@1    Hit@k  Recall@k    MRR@5       平均注入 token
+      1     0.91     0.91      0.86     0.95               91
+      2     0.91     1.00      0.98     0.95                —
+      3     0.91     1.00      1.00     0.95              197   ← 本课默认
+      5     0.91     1.00      1.00     0.95              302
+      8     0.91     1.00      1.00     0.95              466
+    全量塞 30 块：平均注入 1576 token —— 是 k=3 的 8.0 倍，而每一栏指标一个点都没涨。
+         盯：Hit@k 到 k=2 就满了、Recall@k 到 k=3 也满了；再往上加，指标纹丝不动，token 一直涨。</pre>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">诚实提醒（读数字前必看，教师实测）</span>
+    <p>
+      ① <strong>判定口径</strong>：每题都标了 gold，脚本算的是"答案块有没有进 top-k"——这些指标是<strong>确定性</strong>的、可复现的。
+      模型只在镜 3 的"改写"一处出场，且它的输出被原样打印出来给你检查。
+      ② <strong>分辨率</strong>：22 道题上，名次差一名 = 4.5%。所以"0.91 和 0.95"之间<strong>只差一道题</strong>——这个量级的差距<strong>不足以</strong>下结论。
+      看指标时永远先问："这个差距比尺子的噪音大吗？"
+      ③ <strong>题是我出的、语料也是我写的</strong>，出得太顺手 → 指标偏乐观：真实语料的检索比你看到的难。
+      ④ 同一个评估集反复用来调参，调久了就会<strong>过拟合到这套题上</strong>。生产做法：评估集持续扩充（把线上真问题补进去）+ 留一批题不参与调参、只做验收。
+    </p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 A（必做，约 25 分钟）· 亲手给尺子加刻度，并发现"指标是被题集定义的"</span>
+    <p>打开 <code>code/0009-eval-lab.py</code>，你要改的都是文件顶部那两块数据。三步：</p>
+    <ol>
+      <li><strong>加 5 道你自己的题</strong>：照语料里的"易混对"出——年假（C01）／病假（C09）／调休（C10）是一组，出差住宿（C02）／出差餐补（C13）／出差交通（C14）是一组，数据分级（C22）／数据出境（C23）是一组。
+      每题写成员工会真正问出口的话（别照抄语料），标上 gold，加进 <code>QUESTIONS</code>，重跑。<br>
+      <em>要观察</em>：四路的指标各动了多少？你新加的题里有几道落在【各路分歧】那一节？</li>
+      <li><strong>删一块语料再跑一遍</strong>：把 <code>C12（加班餐补与夜间打车）</code> 从 <code>CHUNKS</code> 里删掉，重跑镜 1 和镜 2。<br>
+      <em>要观察</em>：哪些题的 top-1 变了？<strong>镜 2 里"负样本最高分"（噪音天花板）有没有跟着变？</strong>——这一条最能解释"为什么阈值会随语料失效"。</li>
+      <li><strong>加一路检索器</strong>：仿照 <code>kw_scores</code> 写一个"只看块标题（主题词）匹配"的打分函数（<code>CHUNKS</code> 每项第二个字段就是主题名），包成"返回全库排序的块号列表"（照 <code>rank_of(...)</code> 那样），再加进 <code>RETRIEVERS</code>，看它在 22 题上拿多少分。<br>
+      <em>要观察</em>：它是不是比完整的关键词路更差？为什么"标题就够用"这个直觉不成立？</li>
+    </ol>
+    <p><strong>口答（想清楚再说给我听）</strong>：
+    ① 你加了 5 道题之后，如果四路指标<strong>都下降</strong>了——这能不能说明"检索器变差了"？为什么？
+    ② 为什么说"评估集决定你能看见什么"？举一个你加题后才发现的问题。</p>
+  </div>
+
+  <div class="challenge">
+    <span class="t">挑战 B（加分，约 25 分钟）· 用尺子回头调你 0001 里的 search_manual</span>
+    <p>
+      上一课你在 <code>code/0001-minimal-agent.py</code> 里挂了一把 <code>search_manual</code>，还自己加了 <code>MIN_SCORE = 0.6</code> 和 top_k。
+      当时那两个数是<strong>拍</strong>出来的（你也很清楚）。现在你有尺子了，把它们<strong>量</strong>出来：
+    </p>
+    <ol>
+      <li><strong>标定阈值</strong>：按镜 2 的办法，给 <strong>0001 的检索那一侧</strong>也算两条分布——正样本用 0009 的 22 题 gold；负样本除了"非答案块"，再补几道<strong>"手册里根本没有"</strong>的问题（比如"公司年会抽奖规则是什么""团建经费每人多少"，注意别用上一课已经用过的"下午茶"），把这几道的<strong>最高分</strong>也统计进来。看重叠区在哪，据此把 <code>MIN_SCORE</code> 定成一个你能说清理由的数。</li>
+      <li><strong>顺手把语料换成 30 块</strong>：把 0009 的 <code>CHUNKS</code> 整表搬进 0001（前 8 块原文一致，所以搬到哪都不会答错）。重跑你上一课的自检问题（出差住宿 → 600）。<em>要观察</em>：块数从 8 变 30，同一道题的 top-1 分数变了没有？阈值还成立吗？</li>
+      <li><strong>加一步查询改写（本课的核心增量）</strong>：在 0001 里加一个函数，在调用检索之前先把用户的问题补全成自足 query（把最近两轮的对话内容拼进 prompt 让 flash 改写；直接抄 0009 镜 3 的 <code>SYS_REWRITE</code> + <code>rewrite_query</code>）。
+      然后在 REPL 里实测这组追问：先问"员工补充商业医疗险住院能报多少？"→ 再追问"那门诊那部分呢？"<br>
+      <em>自检</em>：追问那一次，看它检索用的 query 是不是被补全了（把改写前后的 query 都打印出来），答案对不对。</li>
+    </ol>
+    <p><strong>交给我</strong>：你定下的 <code>MIN_SCORE</code> 和理由（哪两条分布、重叠区在哪、你为什么往这边偏）；以及改写那一步实测的"救回／弄丢"结果。</p>
+  </div>
+
+  <!-- ============ 4 收束 ============ -->
+  <h2 id="wrap">4 · 收束：确认你"真的会了"</h2>
+
+  <div class="callout do">
+    <span class="t">自我解释练习（最重要的 3 分钟）</span>
+    <p>合上代码，用你自己的话讲给空气（或发给老师我）：<br>
+    <em>"评估 = ____（一份我标的题集） + ____（客观指标）。没有尺子，我只能看到____，看不到____。<br>
+    四个刻度：Hit@1 问____；Hit@k 问____；Recall@k 问____；MRR 问____。<br>
+    题集要从语料____出题，覆盖____／____／____三类问法；指标异常时先怀疑____。<br>
+    混合检索用 RRF，因为它只吃____、不吃____，绕开了不同检索路的____问题；<br>
+    它的收益主要体现在____那一栏，而不是 Hit@1，因为 RRF 会把某一路的____也顶上来。<br>
+    阈值该设多少，要看____与____两条分布分不分得开；分不开时该做的是____，不是继续试数字。<br>
+    追问之所以捞不到，是因为 query 不____；改写必须是____的一步，而且要用____验收。"</em><br>
+    填不出来就翻回第 1 节再讲一遍——这正是把短期记忆变成长期记忆的机制。</p>
+  </div>
+
+  <h3>本课产出</h3>
+  <ul>
+    <li>✅ 能给任何 RAG 项目造一把尺子：评估集（题 + gold）+ Hit@1/Hit@k/Recall@k/MRR 四指标</li>
+    <li>✅ 亲手量出四路检索器：关键词 0.73 ｜ 语义 0.91 ｜ 混合 0.91（Hit@3 1.00）｜ 混合·语义×2 0.95（Hit@1）</li>
+    <li>✅ 说清"合流治漏不治排第一"，以及 RRF 为什么用名次绕开"量纲不可搬运"</li>
+    <li>✅ 会用"正/负样本分布 + 重叠区"标定阈值，并解释上一课那个 0.6 错在哪（误杀 32%）</li>
+    <li>✅ 量出 query 自足性的价值：把追问补全后，同一套检索器 Hit@1 从 2/5 → 5/5</li>
+    <li>✅ 扫出 top_k 的拐点：k=3 之后指标全平、token 却涨到 8 倍</li>
+    <li>✅ M3 记忆与上下文——第三课收官；你的作品集里那个 Agent 第一次有了"可回归的评估"</li>
+  </ul>
+
+  <!-- ============ 5 延伸阅读 ============ -->
+  <h2 id="read">5 · 必读原典 + 下一步</h2>
+
+  <div class="callout read">
+    <span class="t">必读（Primary Source）</span>
+    <p><a href="https://www.anthropic.com/engineering/contextual-retrieval">Introducing Contextual Retrieval — Anthropic（官方博客）</a><br>
+    上一课你已经读过它"给块加上下文前缀"的部分。今天重读其中两点：① <strong>embedding 会漏掉精确串</strong>（错误码、缩写）→ 所以要跟 <strong>BM25（字面/词频检索）双轨合流</strong>——本课镜 1 的题 02（"RTO 是多少"语义连 top-3 都没进、关键词排第 2、混合排第 1）就是这条的现场证据；② 检索质量的提升要靠<strong>可量的方法</strong>而不是直觉，这正是本课在做的事。</p>
+    <p><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents — Anthropic（官方博客）</a><br>
+    第 7 课读全书、第 8 课读 read selective。本课补最后一层：<strong>"怎么知道你的上下文策略是对的"——靠评估，不靠感觉。</strong>整个 M3 到此闭环：先会管（7）、会取（8）、现在会量（9）。</p>
+    <p><a href="https://docs.ragas.io/">Ragas — RAG 评估框架（开源，官方文档）</a><br>
+    工业界最常用的 RAG 评估框架，把本课手写的那几个指标做成了开箱即用的成套指标（<em>context recall / context precision / faithfulness / answer relevancy</em>…）。
+    看它的指标清单时请对照本课：<strong>凡是带 context 的指标量的都是"检索那一端"（本课），带 faithfulness/answer 的量的才是"生成那一端"</strong>——后者要另起一套评估（M6 的正题）。你现在能手写前一半，就不怕后一半的黑盒。</p>
+    <p class="fn">延伸：Anthropic 官方文档 <em>Test &amp; evaluate</em> 一节（给 Claude 应用建评估集的官方步骤）；OpenAI 的 evals 指南（同一件事的 OpenAI 命名）；<strong>BEIR</strong> 检索基准（学术界怎么跨数据集比较检索器——你会发现它们用的指标正是 Hit@k / nDCG 这一族）。工具会换代，指标不会。</p>
+  </div>
+
+  <div class="callout info">
+    <span class="t">问你的老师</span>
+    <p>做完挑战 A/B，把观察答案发我，我点评你练到了哪一层。下一课预告：<strong>M3 收官 / M4 转弯</strong>——把 RAG 真正工程化到能持久（向量库与增量更新）、以及"手写循环到此为止，该看框架了"（LangGraph / Pydantic AI / OpenAI Agents SDK，什么时候用、什么时候别用）。</p>
+  </div>
+
+  <div class="lesson-nav">
+    <a href="../index.html">← 课程首页</a>
+    <a href="../reference/glossary-core-terms.html">术语表 ·</a>
+    <a href="../reference/m2-m3-review.html">M2+M3 复盘日 →</a>
+    <span class="next">本课是 M3 的收官课。做完挑战 A/B（M3 正式收束）后，先去 <a href="../reference/m2-m3-review.html">M2+M3 复盘日</a>用掉那一天；之后进 M4「手写 vs 框架」（尚未发布）。</span>
+  </div>
+
+  <footer class="colophon">第 9 课 · Agent 开发冲刺课 · M3 · 记忆与上下文 · 第三课。完成本课请回来告诉我，我更新你的学习记录。</footer>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
