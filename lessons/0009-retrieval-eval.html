@@ -381,19 +381,30 @@
 
   <div class="callout read">
     <span class="t">必读（Primary Source）</span>
-    <p><a href="https://www.anthropic.com/engineering/contextual-retrieval">Introducing Contextual Retrieval — Anthropic（官方博客）</a><br>
-    上一课你已经读过它"给块加上下文前缀"的部分。今天重读其中两点：① <strong>embedding 会漏掉精确串</strong>（错误码、缩写）→ 所以要跟 <strong>BM25（字面/词频检索）双轨合流</strong>——本课镜 1 的题 02（"RTO 是多少"语义连 top-3 都没进、关键词排第 2、混合排第 1）就是这条的现场证据；② 检索质量的提升要靠<strong>可量的方法</strong>而不是直觉，这正是本课在做的事。</p>
-    <p><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents — Anthropic（官方博客）</a><br>
+    <p><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Demystifying evals for AI agents — Anthropic（官方博客，2026-01）★ 本课首选原典</a><br>
+    目前最权威的 agent 评估一手文（副标题："让 agent 有用的那些能力，也正是让它们难以被评估的原因"）。它讲的正是本课往上一层的同一件事：
+    <strong>评估 = 给 AI 输入 + 用评分逻辑测输出</strong>；难点在从单轮 → 多轮 → agentic 的迁移（多轮工具调用、改状态，误差会累积放大）。
+    读它的时候请对照本课：**你今天量的只是"检索那一端"（Hit@k / Recall@k / MRR，确定性、可复现），它讲的还有"生成那一端"和"整条 pipeline 那一端"该怎么量。**
+    它附录里列了工业界的 eval 框架——你现在手写过前一半，看那张表就不再是黑盒。</p>
+    <p><a href="https://www.anthropic.com/engineering/contextual-retrieval">Introducing Contextual Retrieval — Anthropic（官方博客，2024-09）</a><br>
+    上一课你已经读过它"给块加上下文前缀"的部分。今天重读其中两点：① <strong>embedding 会漏掉精确串</strong>（错误码、缩写）→ 所以要跟 <strong>BM25（字面/词频检索）双轨合流</strong>——本课镜 1 的题 02（"RTO 是多少"语义连 top-3 都没进、关键词排第 2、混合排第 1）就是这条的现场证据；② 检索质量的提升要靠<strong>可量的方法</strong>而不是直觉，这正是本课在做的事。
+    顺手核对官方那几个数（本课备课已直抓原文核实）：单加<strong>上下文前缀</strong>把失败检索降低约 <strong>49%</strong>，再叠加 <strong>rerank</strong> 后约 <strong>67%</strong>。</p>
+    <p><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents — Anthropic（官方博客，2025-09）</a><br>
     第 7 课读全书、第 8 课读 read selective。本课补最后一层：<strong>"怎么知道你的上下文策略是对的"——靠评估，不靠感觉。</strong>整个 M3 到此闭环：先会管（7）、会取（8）、现在会量（9）。</p>
-    <p><a href="https://docs.ragas.io/">Ragas — RAG 评估框架（开源，官方文档）</a><br>
-    工业界最常用的 RAG 评估框架，把本课手写的那几个指标做成了开箱即用的成套指标（<em>context recall / context precision / faithfulness / answer relevancy</em>…）。
-    看它的指标清单时请对照本课：<strong>凡是带 context 的指标量的都是"检索那一端"（本课），带 faithfulness/answer 的量的才是"生成那一端"</strong>——后者要另起一套评估（M6 的正题）。你现在能手写前一半，就不怕后一半的黑盒。</p>
-    <p class="fn">延伸：Anthropic 官方文档 <em>Test &amp; evaluate</em> 一节（给 Claude 应用建评估集的官方步骤）；OpenAI 的 evals 指南（同一件事的 OpenAI 命名）；<strong>BEIR</strong> 检索基准（学术界怎么跨数据集比较检索器——你会发现它们用的指标正是 Hit@k / nDCG 这一族）。工具会换代，指标不会。</p>
+    <p><a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/">Ragas · 指标清单（开源框架，官方文档）</a><br>
+    工业界最常用的 LLM/RAG 评估框架，把本课手写的那几个指标做成了开箱即用的成套指标。它按任务分组：
+    <em>RAG 组</em>有 <strong>Context Precision / Context Recall / Faithfulness / Response Relevancy</strong>（注意官方现行名字是 <strong>Response Relevancy</strong>，不是老叫法 answer relevancy）；另有 <em>Agents 组</em>（Topic Adherence / Tool Call Accuracy / Agent Goal Accuracy）与 <em>Natural Language Comparison</em>（Factual Correctness / Semantic Similarity）、传统非 LLM 指标（BLEU / ROUGE / Exact Match）。
+    看这份清单时请对照本课：<strong>凡是带 context 的指标量的都是"检索那一端"（本课），带 faithfulness / response 的量的才是"生成那一端"</strong>——后者要另起一套评估（M6 的正题）。你现在能手写前一半，就不怕后一半的黑盒。</p>
+    <p class="fn">延伸：<strong>BEIR</strong> 检索基准（<a href="https://github.com/beir-cellar/beir">github.com/beir-cellar/beir</a>，学术界怎么跨 15+ 数据集比较检索器——你会发现它们用的正是 Hit@k / nDCG 这一族指标。本机访问 GitHub 不稳定，打不开就先跳过）；OpenAI 官方 <a href="https://developers.openai.com/api/docs/guides/evaluation-best-practices">Evaluation best practices</a>（按"不确定性来源"分层：输入层评指令遵循 / 输出层评功能正确性 / Agent 层评工具选择与参数抽取 / 多智能体层评 handoff 准确率——同一件事的 OpenAI 命名）。
+    <strong>工具会换代，指标不会。</strong></p>
+    <p class="fn">⚠ 网络可达性（2026-09-10 备课实测）：以上 <code>www.anthropic.com/engineering/*</code> 与 <code>docs.ragas.io</code> 从本机<strong>可直连</strong>；而 Anthropic 的 API 文档站（<code>platform.claude.com</code>，旧别名 <code>docs.claude.com</code>）对大陆 IP 做<strong>地区封锁</strong>，OpenAI 的开发文档站对自动化抓取返回 403 反爬（浏览器正常打开即可）。所以本课把"一定读得到"的原典压在 <strong>Anthropic 工程博客</strong>上——这也是官方写得最实的一档。</p>
   </div>
 
   <div class="callout info">
     <span class="t">问你的老师</span>
-    <p>做完挑战 A/B，把观察答案发我，我点评你练到了哪一层。下一课预告：<strong>M3 收官 / M4 转弯</strong>——把 RAG 真正工程化到能持久（向量库与增量更新）、以及"手写循环到此为止，该看框架了"（LangGraph / Pydantic AI / OpenAI Agents SDK，什么时候用、什么时候别用）。</p>
+    <p>做完挑战 A/B，把观察答案发我，我点评你练到了哪一层——<strong>那一步做完，M3 才算正式收束。</strong></p>
+    <p>M3 收束之后<strong>不要直接进 M4</strong>：先去你手上已经建好的 <a href="../reference/m2-m3-review.html">M2 + M3 复盘日</a>用掉那一天（先自测 → 带问题重读三篇原典 → 压成速查卡）。理由很简单——九课下来你还从没被跨课混着考过，而"自我感觉懂了"和"调得出来"是两件事。复盘日的结果（哪几课塌方）会决定 M4 怎么开篇。</p>
+    <p>再之后：<strong>M4「手写 vs 框架」</strong>——手写循环到此为止，看 LangGraph / Pydantic AI / OpenAI Agents SDK 各自封装了同一套东西的哪些部分、什么时候该上框架什么时候别上（承 Building Effective Agents"先上最简单方案"的立场）。真向量库（Chroma/FAISS）与持久化本课刻意只点破没装依赖，留到 M4 之后或直接长进你的作品集项目。</p>
   </div>
 
   <div class="lesson-nav">

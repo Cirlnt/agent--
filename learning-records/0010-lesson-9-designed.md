@@ -65,9 +65,30 @@
 
 - [x] 教师预跑 code/0009 四镜全绿，真实输出回填本文件"教师预跑取证"节 + 嵌进课件"动手"节。
 - [x] lessons/0009-retrieval-eval.html 就绪，index.html 加第 9 课入口（第 8 课卡片降级）。
-- [ ] 核实本课引用的原典链接可访问（eval 主题；RESOURCES.md 的 Gap 里正有一条"缺评估体系实操范本"，本课交付后应回填一条）。
-- [ ] git 提交"第九课交付"。
+- [x] **核实本课引用的原典链接可访问**（2026-09-10 完成，见下方"链接核实"节）。RESOURCES.md 那条"缺评估体系实操范本"的 Gap 已回填为「部分关闭」。
+- [x] git 提交"第九课交付"。
 - [ ] （用户实证完成后）KNOWLEDGE.md 追加第 9 课 ①~⑥ + 实证补记、NOTES.md 路线图推进到 M4、本文件加"实证收尾"节并标记完成。
+
+## 链接核实（2026-09-10）
+
+**背景**：Claude Code 的 WebFetch 在本机对**所有域名**都返回 "Unable to verify if domain … is safe to fetch"（工具被网络策略整体拦，不是站点问题）→ 改走 `curl -L -A "<浏览器 UA>"` 逐条拿真实状态码；另派子代理独立核了一遍，两次结论一致。
+
+**核过的事实**：
+
+- ✅ **Anthropic 工程博客四篇全部 200 直抓**：`building-effective-agents`（2024-12-19）、`effective-context-engineering-for-ai-agents`（2025-09-29）、`contextual-retrieval`（2024-09-19）、`demystifying-evals-for-ai-agents`（2026-01-09）。`/pricing` 也 200。
+- ✅ **Ragas 指标清单页** 200（标题 "List of available metrics - Ragas"）。**术语修正**：官方现行名字是 **`Response Relevancy`**，不是老叫法 `answer relevancy` —— 已改课件。
+- ✅ **Contextual Retrieval 的那两个数在原文里核到了**：单加上下文前缀降 **49%**、再加 rerank 降 **67%**。→ 课件里从"降近一半（转述）"升级为可核的确定数字。
+- 🆕 **本次最有价值的发现**：Anthropic 工程博客有一篇 **《Demystifying evals for AI agents》（2026-01-09）**，是目前最权威的 agent 评估一手文（eval = 输入 + 评分逻辑；难点在单轮→多轮→agentic 的迁移，工具调用改状态会让误差累积放大；附录列了工业界 eval 框架）。**它才是本课该挂的首选原典**——已写进第 9 课 §5、复盘日 §4 与映射表、RESOURCES.md、以及 Gap 的关闭说明。原课件的 eval 原典只有 Ragas（框架文档），层级偏低；现在补上了方法论一手文。
+- ❌ **`platform.claude.com/docs/...`（Anthropic API 文档）地区封锁**：307 → `app-unavailable-in-region`。做了**控制实验**（编造一个不存在的路径，表现完全一样）→ 闸门拦在路由之前，**无法判断页面存在性，也不能据此说 URL 有效**。这是本课"延伸"栏里引到 Anthropic API 文档时会踩的坑。
+- ❌ **OpenAI 开发文档站 403 反爬**（`X-Vercel-Mitigated: deny` / Cloudflare bot management）——**URL 本身有效**，浏览器可开，只是抓不到。不要因 403 改链接。附带发现：**OpenAI Cookbook 已迁站**到 `developers.openai.com/cookbook/*`。
+- ⚠ **GitHub 在本机时通时断**（同 URL 4 次只有 1 次拿到 200）。
+- **结构性修正**：Anthropic API 文档规范主机名已是 `platform.claude.com`（`docs.claude.com` / `docs.anthropic.com` 只是别名），路径格式由 `/en/docs/<s>/<p>` 变为 `/docs/en/<s>/<p>`。**本仓课件早已统一用规范形式，无需批量改**（已 grep 全仓确认无旧格式）。
+
+**因此落地的引用方针**（写进 RESOURCES.md 新增的"可达性实测"节）：课件"必读原典"只压**可直连**的一档（Anthropic 工程博客 + Ragas + 本仓自产实验）；被封锁/反爬的文档降为"延伸对照"且**明写网络提示**——不让学员对着打不开的链接干瞪眼。
+
+## 回填动作（链接核实）
+
+`RESOURCES.md`（新增"可达性实测"节 + 四篇工程博客独立条目 + OpenAI eval best practices + Gap 改「部分关闭」）；`lessons/0009-retrieval-eval.html`（§5 首选原典换成 Demystifying evals、补 49%/67% 确定数字、Ragas 改规范链接 + `Response Relevancy` 正名、加网络可达性提醒、§5 结尾预告改为"先过复盘日再进 M4"）；`reference/m2-m3-review.html`（映射表与文档速查档挂上 evals 一文、可达性提示、Contextual Retrieval 带读问题给出可折叠的核对答案）。
 
 ## 教师预跑取证（2026-09-10，DeepSeek v4-flash / Anthropic 兼容端点，code/0009 已预跑四镜全绿）
 

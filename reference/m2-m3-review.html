@@ -98,9 +98,9 @@
       <p class="q-text">3 · 一条新规矩该写进 system 还是某个工具的 description？判据是——</p>
       <div class="opts">
         <button class="opt" data-correct="false" data-explain="【第 4 课】长短不是判据。很长的全局章程照样写 system，很短的工具参数说明照样写 schema。">A · 看这条规矩有多长，长的进 system</button>
-        <button class="opt" data-correct="true" data-explain="【第 4 课】判据是「它管多大范围」：只管一个工具该不该被调、参数怎么填 → 写那个工具的 description/schema；管整台 Agent 的身份、边界、跨工具取舍 → 写 system。">B · 看它管一个工具，还是管整台 Agent：前者进 description，后者进 system</button>
+        <button class="opt" data-correct="true" data-explain="【第 4 课】判据是「它管多大范围」：只管一个工具该不该被调、参数怎么填 → 写那个工具的 description/schema（第 2 课那条「白名单兜得住域外、兜不住域内语义错」也是同一层）；管整台 Agent 的身份、边界、跨工具取舍 → 写 system。">B · 看它管一个工具，还是管整台 Agent：前者进 description，后者进 system</button>
         <button class="opt" data-correct="false" data-explain="【第 4 课】两处都写会造成冲突和冗余，不是「保险」。该由哪一层负责就写在哪一层，另一个地方不重复。">C · 重要的规矩两处都写一遍，双保险</button>
-        <button class="opt" data-correct="false" data-explain="【第 4 课】system 与 description 是分工，不是替代。第 4 课实测：不写 system 的 Agent 会悄悄从「查库存助手」扩成「通用助手」——description 自守拦不住这种域外扩权。">D · 全部写进 description 就行，system 可有可无</button>
+        <button class="opt" data-correct="false" data-explain="【第 4 课】system 与 description 是分工，不是替代。第 4 课实测：不写 system 的天气助手会扩张成「通用助手」——你给了它联网工具，它就把整个产品变成「能查一切的搜索引擎」，转而去查比特币价格。description 自守拦不住这种域外扩权。">D · 全部写进 description 就行，system 可有可无</button>
       </div>
     </div>
 
@@ -210,7 +210,7 @@
         <button class="opt" data-correct="true" data-explain="【第 8 课】实测：同一件事换种说法问，关键词重合度从 0.62 掉到 0.11（判无命中），语义余弦只从 0.77 到 0.67 仍然捞对。而语义的软肋是精确串——第 9 课实测「RTO 是多少」语义连 top-3 都没进，关键词排第 2。">A · 关键词只认字面（换个说法就断）；语义会漏「精确串」（缩写、错误码）</button>
         <button class="opt" data-correct="false" data-explain="【第 8/9 课】反了。关键词恰恰是精确串的主场，语义才是「换说法」的主力。">B · 关键词擅长理解语义；语义擅长精确匹配</button>
         <button class="opt" data-correct="false" data-explain="【第 8 课】关键词在照原话问时非常好用（0.62 高命中）——它不是没用，是「只认字面」。">C · 关键词检索毫无价值，可以直接删掉</button>
-        <button class="opt" data-correct="false" data-explain="【第 8/9 课】两者都会错：语义会漏精确串、也会被近义噪音骗（第 9 课「学习基金」那题它就捞错）；所以才有混合与 rerank。">D · 语义检索不会出错，出错一定是关键词那一路</button>
+        <button class="opt" data-correct="false" data-explain="【第 8/9 课】两者都会错。第 9 课镜 1 题 18「我想报个线上课程，公司能出钱吗？」（gold 是学习基金 C28）——语义路捞成了 C12，关键词路反而对。所以才有混合与 rerank；也所以「这一题该谁赢」不能靠直觉，得靠尺子。">D · 语义检索不会出错，出错一定是关键词那一路</button>
       </div>
     </div>
 
@@ -359,7 +359,7 @@
       <tr><td>6、7、8</td><td>第 6 课 · 成本与 token</td><td>Anthropic <em>Token counting</em> + <em>Prompt caching</em> 官方文档（缓存省的是「重复前缀的输入单价」）</td><td><code>code/0006</code> 四镜</td></tr>
       <tr><td>9、10、11</td><td>第 7 课 · 无状态与上下文管理</td><td><strong>Effective context engineering for AI agents</strong> → 四策略 write long / read selective / divide &amp; conquer / summarize（本课「三招」是它的工程化子集）</td><td><code>code/0007</code> 镜 1「无状态实锤」</td></tr>
       <tr><td>12、13、14、15</td><td>第 8 课 · RAG 与检索</td><td><strong>Introducing Contextual Retrieval</strong>（上下文前缀 / 为什么还要 BM25 / rerank）+ OpenAI <em>Text embeddings</em> 官方文档</td><td><code>code/0008</code> 镜 1、镜 2</td></tr>
-      <tr><td>16、17、18、19、20</td><td>第 9 课 · 评估与检索调优</td><td><a href="https://docs.ragas.io/">Ragas 官方文档</a>的指标清单（对照本课手写的 Hit@k / Recall@k / MRR；带 context 的量检索、带 faithfulness 的量生成）</td><td><code>code/0009</code> 四镜</td></tr>
+      <tr><td>16、17、18、19、20</td><td>第 9 课 · 评估与检索调优</td><td><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Demystifying evals for AI agents（Anthropic，2026-01）</a>——eval 主题最实的一手文；配 <a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/">Ragas 指标清单</a>对账（带 context 的量检索、带 Faithfulness / Response Relevancy 的量生成）</td><td><code>code/0009</code> 四镜</td></tr>
     </tbody>
   </table>
 
@@ -396,7 +396,7 @@
       <li>它把 <strong>context engineering</strong> 和 <strong>prompt engineering</strong> 怎么区分？为什么要专门造一个新词？</li>
       <li>四条策略分别是什么？<strong>哪一条</strong>是第 8/9 课（RAG、检索评估）直接落的？</li>
       <li>关于「<strong>先把资料全塞进去</strong>」vs「<strong>用时再去取</strong>」（just-in-time / 按需检索），它的立场是什么？有没有给具体的适用条件或数字门槛？<span class="qtag">（第 8 课那个「资料库小于 20 万 token 时全塞可能更划算」的说法，在原文里究竟怎么表述的？）</span></li>
-      <li>它提到的 <strong>compaction / 摘要</strong> 和 <strong>子 Agent（sub-agent）</strong> 各解决了什么问题？这两种手段和你第 7 课的「三招压历史」是什么关系？</li>
+      <li>它讲的 <strong>compaction（压缩/摘要）</strong> 和 <strong>divide &amp; conquer（拆给子 Agent 各管一段）</strong> 分别解决什么问题？这两种手段和你第 7 课的「三招压历史」是什么关系？</li>
       <li><strong>回到你自己</strong>：你 0001 里的上下文，现在由哪几块构成（system / 历史 / 工具说明书 / 检索结果）？按这篇文章的标准，哪一块最该先被优化？</li>
     </ol>
   </div>
@@ -413,6 +413,8 @@
       <li>传统的「切块 + 向量检索」它指出的核心缺陷是什么？<span class="qtag">（用第 8 课那个「一块孤立的『门诊报销 80%』不知道在说哪家、哪年」的例子来讲。）</span></li>
       <li>「上下文前缀」是怎么生成的？它为什么在这个做法里用了一个便宜模型？</li>
       <li><strong>把官方报告的数字抄下来</strong>：单加上下文前缀、再加 BM25、再加 rerank，检索失败率分别降到多少？<span class="qtag">（这一条不许靠记忆，要在原文里找到那几个百分比抄到你的错题本上。）</span></li>
+      <li class="qtag">答完对着一条：<details class="ans" style="margin:.4rem 0 .4rem"><summary>点开核对（教师备课已直抓原文核过）</summary><p>单加<strong>上下文前缀</strong> → 失败检索降低约 <strong>49%</strong>；<strong>再叠加 BM25</strong> → 进一步降；<strong>再加 rerank</strong> → 合计约 <strong>67%</strong>。文章发布于 2024-09-19。<br>
+      你若不是<strong>先自己抄、再点开</strong>，这条练习就白做了——去原文里找到那几个百分比的位置，比记住数字重要。</p></details></li>
       <li>它怎么解释「有了 embedding，为什么还需要 BM25」？这跟第 9 课镜 1 题 02 的现象是同一条吗？</li>
       <li><strong>回到你自己</strong>：你 0009 里的 30 块语料，用这份原典的标准看，还差什么？（提示：块里有没有指代不明的「它/该/上述」？rerank 那一层你有没有？）</li>
     </ol>
@@ -423,9 +425,14 @@
     <p>
       Anthropic 侧：<strong>Tool use</strong>（tools 三字段 / tool_result 结构 / 并行工具调用）、<strong>Prompt engineering overview</strong>（system 的角色）、
       <strong>Streaming</strong>（六种事件 / 三种 delta / 为什么工具参数要拼）、<strong>Token counting</strong> 与 <strong>Prompt caching</strong>（缓存命中「重复前缀」的那部分输入）。
-      OpenAI 侧：<strong>Structured outputs</strong>（对照「工具即输出」）、<strong>Text embeddings</strong>（embedding = 语义向量，text-embedding-3-*，对照本课本地 bge）。
+      OpenAI 侧：<strong>Structured outputs</strong>（对照「工具即输出」）、<strong>Evaluations 最佳实践</strong>（按不确定性来源分层）、<strong>Text embeddings</strong>（embedding = 语义向量，对照本课本地 bge）。
       这些文档在你的 <code>RESOURCES.md</code> 与各课"必读"栏里都有链接。<strong>要查哪一条就只翻哪一条</strong>——今天读文档是为了对账，不是为了通读。
     </p>
+    <p>
+      <strong>九课之外、但今天值得顺手读掉的一篇</strong>：<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Demystifying evals for AI agents（Anthropic 工程博客，2026-01）</a>——
+      这是 eval 主题上目前最实的一手文，也是 M6 的正题。第 9 课你量的是<strong>检索那一端</strong>（确定性、可复现），它讲的是<strong>生成那一端 + 整条 pipeline 那一端</strong>怎么量（多轮、工具调用、改状态，误差会累积放大）。读它你会有个爽点：附录那张 eval 框架表，你现在看得懂每一格在说什么。
+    </p>
+    <p class="fn">⚠ 可达性（2026-09-10 实测）：<code>www.anthropic.com/engineering/*</code> 与 <code>docs.ragas.io</code> 本机可直连；Anthropic 的 <strong>API 文档站</strong>（<code>platform.claude.com</code>，旧别名 <code>docs.claude.com</code>）对大陆 IP 地区封锁，OpenAI 开发文档站对自动化抓取返 403（<strong>浏览器打开正常</strong>）。所以今天"一定读得到"的压在三篇工程博客上——它们本来也是最值得精读的一档。</p>
   </div>
 
   <h2 id="cheatsheet">5 · 一页速查卡（以后一直翻这张）</h2>
