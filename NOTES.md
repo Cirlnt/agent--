@@ -12,7 +12,7 @@
 ## 3 个月冲刺课程路线图（粗略，会随进度修订）
 1. **M1 核心心智模型**：agentic loop、LLM 工具调用、一次调用 vs 循环（已完成：第 1 课，见 learning-records/0002）
 2. **M2 工程地基**：prompt / 结构化输出 / tool calling 实战（Claude+OpenAI 双写）、流式、成本与 token（第 2 课 工具说明书 ✅、第 3 课 结构化输出 ✅、第 4 课 提示词工程（system vs description 分工）✅、第 5 课 流式 ✅、第 6 课 成本与 token ✅交付，均已实证完成回填 → **M2 六块收官 ✅**；第 6 课 KNOWLEDGE ①~⑥ + 实证补记已回填）
-3. **M3 记忆与上下文**：多轮状态、长上下文、向量库与 RAG 基础（第 7 课 多轮状态+上下文管理 ✅ 已实证收束 2026-09-08，KNOWLEDGE 第 7 课①~⑥ 已回填；下一课 检索注入/RAG 上手）
+3. **M3 记忆与上下文**：多轮状态、长上下文、向量库与 RAG 基础（第 7 课 多轮状态+上下文管理 ✅ 已实证收束 2026-09-08；第 8 课 检索注入/RAG 上手 ✅ 已实证收束 2026-09-10——KNOWLEDGE 第 7、8 课①~⑥ 与实证补记均已回填。**M3 前两课收官**；下一课 M3 第三课：把 RAG 工程化——真向量库（Chroma/FAISS）、切块策略、rerank、**检索质量怎么评估（eval 第一次上手）**，入口正是第 8 课量出的"阈值该设哪、query 自不自足"）
 4. **M4 手写 vs 框架**：先手写循环，再看 LangGraph / Pydantic AI / OpenAI Agents SDK 如何封装，何时用框架
 5. **M5 连接世界**：MCP、自定义工具、技能（Skills）、多智能体编排
 6. **M6 生产化**：评估（evals）、可观测性、错误处理、部署（FastAPI / Docker）
@@ -33,3 +33,5 @@
 - 实测结论：`anthropic` SDK 1.4.0 在这个端点上**工具调用（tool_use → tool_result 闭环）完全可用**，还会返回 thinking 块。
 - 教学影响：概念课仍以 Claude/OpenAI 为讲解主线（求职面试知识），但**一切"动手跑"的代码都跑在 DeepSeek 上**。SDK 写法不变 → 这正是"厂商无关"教学的好例子。`code/0001-minimal-agent.py` 已适配（MODEL=flash、max_tokens=4096、加了 Windows 控制台 utf-8 reconfigure）。
 - 提醒：这些 env var 只在配了 Claude Code 的环境里可见；用户新开终端跑脚本可能读不到，届时引导他手动 set（值可从本会话 env 复制，或 platform.deepseek.com）。
+- **跑 embedding 脚本必须用项目 venv**：`D:\agent学习\agent-lab\.venv\Scripts\python.exe`（或先 `activate`）。全局 `D:\tool\python\python.exe`（3.13.5）装了 anthropic 但**没装 fastembed**——第 1~7 课用全局 python 照跑无事，第 8 课起一引入 embedding 就 `ModuleNotFoundError: No module named 'fastembed'`（2026-09-10 挑战 A 真实踩中）。**"前几课都能跑"不等于环境没问题**；排查时先问"你怎么跑的"，再看代码。
+- 调试用管道喂中文给脚本时要加 `PYTHONIOENCODING=utf-8`：Windows 管道会按 cp936 解出**孤立代理字符**，报一个和代码无关的假错 `UnicodeEncodeError: surrogates not allowed`。
